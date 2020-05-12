@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ScopeController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.rest</a> &gt; <span class="el_source">ScopeController.java</span></div><h1>ScopeController.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.rest;
+
+
+import com.capitalone.dashboard.model.DataResponse;
+import com.capitalone.dashboard.model.Scope;
+import com.capitalone.dashboard.service.ScopeService;
+import com.capitalone.dashboard.util.PaginationHeaderUtility;
+import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+
+import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
+import static org.springframework.web.bind.annotation.RequestMethod.GET;
+
+/**
+ * REST service managing all requests to the feature repository.
+ *
+ * @author KFK884
+ *
+ */
+@RestController
+public class ScopeController {
+	private final ScopeService scopeService;
+	private PaginationHeaderUtility paginationHeaderUtility;
+
+	@Autowired
+<span class="fc" id="L36">	public ScopeController(ScopeService scopeService,PaginationHeaderUtility paginationHeaderUtility) {</span>
+<span class="fc" id="L37">		this.scopeService = scopeService;</span>
+<span class="fc" id="L38">		this.paginationHeaderUtility = paginationHeaderUtility;</span>
+<span class="fc" id="L39">	}</span>
+
+	/**
+	 * REST endpoint for retrieving all features for a given sprint and team
+	 * (the sprint is derived) A given scope-owner's source-system ID
+	 *
+	 * @param cId
+	 * @param scopeId
+	 * @return A data response list of type Feature containing all features for
+	 *         the given team and current sprint
+	 */
+	@RequestMapping(value = &quot;/scope/{scopeId}&quot;, method = GET, produces = APPLICATION_JSON_VALUE)
+	public DataResponse&lt;List&lt;Scope&gt;&gt; scope(
+			@RequestParam(value = &quot;component&quot;, required = true) String cId,
+			@PathVariable String scopeId) {
+<span class="nc" id="L54">		ObjectId componentId = new ObjectId(cId);</span>
+<span class="nc" id="L55">		return this.scopeService.getScope(componentId, scopeId);</span>
+	}
+
+	/**
+	 * Return list of Teams
+	 *
+	 * @param collectorId
+	 *
+	 * @return projects
+	 */
+	@RequestMapping(value = &quot;/scopecollector/{collectorId}&quot;, method = GET, produces = APPLICATION_JSON_VALUE)
+	public List&lt;Scope&gt; teamsByCollector(
+			@PathVariable String collectorId) {
+<span class="nc" id="L68">		return this.scopeService.getScopesByCollector(new ObjectId(collectorId));</span>
+	}
+
+
+	/**
+	 * REST endpoint for retrieving all features for a given sprint and team
+	 * (the sprint is derived)
+	 *
+	 * @return scopes
+	 */
+	@RequestMapping(value = &quot;/scope&quot;, method = GET, produces = APPLICATION_JSON_VALUE)
+	public List&lt;Scope&gt; allScopes() {
+<span class="nc" id="L80">		return this.scopeService.getAllScopes();</span>
+	}
+
+	/**
+	 * Return list of teams with pagination
+	 *
+	 * @param collectorId
+	 * @param descriptionFilter
+	 * @param pageable
+	 *
+	 * @return List of scope
+	 */
+	@RequestMapping(value = &quot;/scopecollector/page/{collectorId}&quot;, method = GET, produces = APPLICATION_JSON_VALUE)
+	public ResponseEntity&lt;List&lt;Scope&gt;&gt; teamsByCollectorPage(
+			@PathVariable String collectorId,@RequestParam(value = &quot;search&quot;, required = false, defaultValue = &quot;&quot;) String descriptionFilter, @PageableDefault(size = Integer.MAX_VALUE) Pageable pageable) {
+<span class="nc" id="L95">		Page&lt;Scope&gt; pageOfScopeItems = scopeService.getScopeByCollectorWithFilter(new ObjectId(collectorId),descriptionFilter,pageable);</span>
+<span class="nc" id="L96">		return ResponseEntity</span>
+<span class="nc" id="L97">				.ok()</span>
+<span class="nc" id="L98">				.headers(paginationHeaderUtility.buildPaginationHeaders(pageOfScopeItems))</span>
+<span class="nc" id="L99">				.body(pageOfScopeItems.getContent());</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

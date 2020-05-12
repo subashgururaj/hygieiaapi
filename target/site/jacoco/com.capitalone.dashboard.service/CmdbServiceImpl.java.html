@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CmdbServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.service</a> &gt; <span class="el_source">CmdbServiceImpl.java</span></div><h1>CmdbServiceImpl.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.service;
+
+import com.capitalone.dashboard.model.Cmdb;
+import com.capitalone.dashboard.repository.CmdbRepository;
+import org.apache.commons.lang3.StringUtils;
+import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+
+import java.util.ArrayList;
+import java.util.List;
+
+@Service
+public class CmdbServiceImpl implements CmdbService {
+
+    private final CmdbRepository cmdbRepository;
+
+    @Autowired
+<span class="fc" id="L21">    public CmdbServiceImpl(CmdbRepository cmdbRepository) {</span>
+<span class="fc" id="L22">        this.cmdbRepository = cmdbRepository;</span>
+
+<span class="fc" id="L24">    }</span>
+
+    @Override
+    public Page&lt;Cmdb&gt; configurationItemsByTypeWithFilter(String itemType, String filter, Pageable pageable) {
+
+        Page&lt;Cmdb&gt; configItemString;
+
+<span class="nc bnc" id="L31" title="All 2 branches missed.">        if( StringUtils.isNotEmpty( filter ) ){</span>
+
+<span class="nc" id="L33">            List&lt;Cmdb&gt; cmdbList = cmdbRepository.findAllByConfigurationItemContainingOrCommonNameContainingAllIgnoreCase(filter,filter);</span>
+
+<span class="nc" id="L35">            List&lt;ObjectId&gt; cmdbIdsList = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L36" title="All 2 branches missed.">            for (Cmdb cmdb : cmdbList) {</span>
+<span class="nc" id="L37">                cmdbIdsList.add(cmdb.getId());</span>
+<span class="nc" id="L38">            }</span>
+
+<span class="nc" id="L40">            configItemString = cmdbRepository.findAllByItemTypeAndValidConfigItemAndIdIn(itemType,true, cmdbIdsList, pageable);</span>
+
+<span class="nc" id="L42">        }else{</span>
+<span class="nc" id="L43">            configItemString = cmdbRepository.findAllByItemTypeAndConfigurationItemContainingIgnoreCaseAndValidConfigItem(</span>
+                    itemType, filter, pageable, true);
+        }
+<span class="nc" id="L46">        return configItemString;</span>
+    }
+    @Override
+    public String configurationItemNameByObjectId(ObjectId objectId){
+<span class="nc" id="L50">        Cmdb cmdb = configurationItemsByObjectId(objectId);</span>
+<span class="nc" id="L51">        return cmdb.getConfigurationItem();</span>
+    }
+    @Override
+    public Cmdb configurationItemsByObjectId(ObjectId objectId){
+<span class="nc" id="L55">        Cmdb cmdb = cmdbRepository.findOne(objectId);</span>
+<span class="nc" id="L56">        return cmdb;</span>
+    }
+    @Override
+    public Cmdb configurationItemByConfigurationItem(String configItem){
+<span class="nc" id="L60">        Cmdb cmdbItem= cmdbRepository.findByConfigurationItemIgnoreCase(configItem);</span>
+<span class="nc" id="L61">        return cmdbItem;</span>
+    }
+    @Override
+    public List&lt;Cmdb&gt; getAllBusServices(){
+<span class="nc" id="L65">        List&lt;Cmdb&gt; cmdbs = cmdbRepository.findAllByItemType(&quot;app&quot;);</span>
+<span class="nc" id="L66">        return cmdbs;</span>
+    }
+
+    @Override
+    public List&lt;Cmdb&gt; commonNameByConfigurationItem(String commonName){
+<span class="nc" id="L71">        List&lt;Cmdb&gt; cmdbConfigurationItem = cmdbRepository.findByCommonNameOrderByTimestamp(commonName);</span>
+<span class="nc" id="L72">        return cmdbConfigurationItem;</span>
+    }
+
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

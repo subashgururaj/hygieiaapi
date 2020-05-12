@@ -1,0 +1,443 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SonarQubeHookServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.webhook.sonarqube</a> &gt; <span class="el_source">SonarQubeHookServiceImpl.java</span></div><h1>SonarQubeHookServiceImpl.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.webhook.sonarqube;
+
+import com.capitalone.dashboard.client.RestClient;
+import com.capitalone.dashboard.client.RestUserInfo;
+import com.capitalone.dashboard.collector.RestOperationsSupplier;
+import com.capitalone.dashboard.misc.HygieiaException;
+import com.capitalone.dashboard.repository.CodeQualityRepository;
+import com.capitalone.dashboard.repository.CollectorRepository;
+import com.capitalone.dashboard.repository.ComponentRepository;
+import com.capitalone.dashboard.repository.SonarProjectRepository;
+import com.capitalone.dashboard.model.SonarProject;
+import com.capitalone.dashboard.model.Collector;
+import com.capitalone.dashboard.model.CollectorType;
+import com.capitalone.dashboard.model.CodeQuality;
+import com.capitalone.dashboard.model.CodeQualityMetric;
+import com.capitalone.dashboard.model.CodeQualityType;
+import com.capitalone.dashboard.model.Component;
+import com.capitalone.dashboard.model.CollectorItem;
+import com.capitalone.dashboard.request.SonarDataSyncRequest;
+import com.capitalone.dashboard.settings.ApiSettings;
+import com.capitalone.dashboard.webhook.settings.SonarDataSyncSettings;
+import com.google.common.base.Strings;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import org.apache.commons.codec.binary.Base64;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClientException;
+
+import javax.annotation.Nullable;
+import java.nio.charset.Charset;
+import java.text.SimpleDateFormat;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.List;
+import java.util.Optional;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
+
+@Service
+public class SonarQubeHookServiceImpl implements SonarQubeHookService {
+
+<span class="nc" id="L56">    private static final Log LOG = LogFactory.getLog(SonarQubeHookService.class);</span>
+
+    private static final String MINUTES_FORMAT = &quot;%smin&quot;;
+    private static final String HOURS_FORMAT = &quot;%sh&quot;;
+    private static final String DAYS_FORMAT = &quot;%sd&quot;;
+    private static final int HOURS_IN_DAY = 8;
+
+    private static final String DATE_FORMAT = &quot;yyyy-MM-dd'T'HH:mm:ssZ&quot;;
+    private static final String ID = &quot;id&quot;;
+    private static final String NAME = &quot;name&quot;;
+    private static final String KEY = &quot;key&quot;;
+    private static final String METRIC = &quot;metric&quot;;
+    private static final String MSR = &quot;measures&quot;;
+    private static final String VALUE = &quot;value&quot;;
+    private static final String CDT = &quot;conditions&quot;;
+    private static final String DSHBRD_URL = &quot;url&quot;;
+    private static final String ANALYSIS_TIME = &quot;analysedAt&quot;;
+    private static final String TASK_ID = &quot;taskId&quot;;
+    private static final String STATUS_WARN = &quot;WARN&quot;;
+    private static final String STATUS_ALERT = &quot;ALERT&quot;;
+    private static final String DATE = &quot;date&quot;;
+    private static final String EVENTS = &quot;events&quot;;
+    private static final String VERSION = &quot;revision&quot;;
+    private static final String NICE_NAME = &quot;niceName&quot;;
+    private static final String PROJECT_NAME = &quot;options.projectName&quot;;
+
+    private final CodeQualityRepository codeQualityRepository;
+    private final SonarProjectRepository sonarProjectRepository;
+    private final CollectorRepository collectorRepository;
+    private final ComponentRepository componentRepository;
+    private final RestClient restClient;
+    @Autowired
+    private ApiSettings settings;
+
+
+    @Autowired
+    SonarQubeHookServiceImpl( CodeQualityRepository codeQualityRepository, SonarProjectRepository sonarProjectRepository,
+                              CollectorRepository collectorRepository, ComponentRepository componentRepository,ApiSettings settings, RestClient restClient)
+<span class="nc" id="L94">    {</span>
+<span class="nc" id="L95">        this.codeQualityRepository = codeQualityRepository;</span>
+<span class="nc" id="L96">        this.sonarProjectRepository = sonarProjectRepository;</span>
+<span class="nc" id="L97">        this.collectorRepository = collectorRepository;</span>
+<span class="nc" id="L98">        this.componentRepository = componentRepository;</span>
+<span class="nc" id="L99">        this.settings = settings;</span>
+<span class="nc" id="L100">        this.restClient = restClient;</span>
+<span class="nc" id="L101">    }</span>
+
+    @Override
+    public String createFromSonarQubeV1(JSONObject request) throws ParseException {
+
+<span class="nc" id="L106">        JSONParser jsonParser = new JSONParser();</span>
+<span class="nc" id="L107">        JSONObject jsonObject = (JSONObject) jsonParser.parse(request.toJSONString());</span>
+<span class="nc" id="L108">        JSONObject prjData = (JSONObject) jsonObject.get(&quot;project&quot;);</span>
+
+        SonarProject existingProject;
+<span class="nc" id="L111">        SonarProject project = new SonarProject();</span>
+
+<span class="nc" id="L113">        project.setEnabled(false);</span>
+<span class="nc" id="L114">        project.setDescription(project.getProjectName());</span>
+<span class="nc" id="L115">        project.setNiceName(&quot;SonarWebhook&quot;);</span>
+<span class="nc" id="L116">        project.setInstanceUrl(str(prjData,DSHBRD_URL));</span>
+<span class="nc" id="L117">        project.setProjectId(str(prjData, KEY));</span>
+<span class="nc" id="L118">        project.setProjectName(str(prjData, NAME));</span>
+<span class="nc" id="L119">        project.setDescription(project.getProjectName());</span>
+
+<span class="nc" id="L121">        Collector collector = collectorRepository.findByName(&quot;Sonar&quot;);</span>
+<span class="nc bnc" id="L122" title="All 2 branches missed.">        if(collector == null){</span>
+<span class="nc" id="L123">            collector = new Collector();</span>
+<span class="nc" id="L124">            collector.setName(&quot;Sonar&quot;);</span>
+<span class="nc" id="L125">            collector.setCollectorType(CollectorType.CodeQuality);</span>
+<span class="nc" id="L126">            collector.setOnline(true);</span>
+<span class="nc" id="L127">            collector.setEnabled(true);</span>
+<span class="nc" id="L128">            collector.setSearchFields(Arrays.asList(PROJECT_NAME,NICE_NAME));</span>
+<span class="nc" id="L129">            Map&lt;String, Object&gt; allOptions = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L130">            allOptions.put(project.getInstanceUrl(),&quot;&quot;);</span>
+<span class="nc" id="L131">            allOptions.put(project.getProjectName(),&quot;&quot;);</span>
+<span class="nc" id="L132">            allOptions.put(project.getProjectId(), &quot;&quot;);</span>
+<span class="nc" id="L133">            collector.setAllFields(allOptions);</span>
+<span class="nc" id="L134">            Map&lt;String, Object&gt; uniqueOptions = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L135">            uniqueOptions.put(project.getInstanceUrl(),&quot;&quot;);</span>
+<span class="nc" id="L136">            uniqueOptions.put(project.getProjectName(),&quot;&quot;);</span>
+<span class="nc" id="L137">            collector.setUniqueFields(uniqueOptions);</span>
+        }
+
+<span class="nc" id="L140">        project.setCollectorId(collector.getId());</span>
+
+
+<span class="nc" id="L143">        existingProject = sonarProjectRepository.findSonarProject(project.getCollectorId(),project.getInstanceUrl(),project.getProjectName());</span>
+
+<span class="nc bnc" id="L145" title="All 2 branches missed.">        if(existingProject != null)</span>
+        {
+<span class="nc" id="L147">            refreshData(existingProject, request);</span>
+        }else
+        {
+<span class="nc" id="L150">            refreshData(project, request);</span>
+        }
+
+<span class="nc" id="L153">        return &quot;Processing Complete for &quot; + project.getProjectName();</span>
+    }
+
+    private void refreshData(SonarProject sonarProject, JSONObject request) {
+
+<span class="nc" id="L158">        CodeQuality codeQuality = currentCodeQuality(sonarProject, request);</span>
+<span class="nc bnc" id="L159" title="All 4 branches missed.">        if (codeQuality != null &amp;&amp; isNewQualityData(sonarProject, codeQuality)) {</span>
+<span class="nc" id="L160">            sonarProject.setLastUpdated(System.currentTimeMillis());</span>
+<span class="nc" id="L161">            sonarProjectRepository.save(sonarProject);</span>
+<span class="nc" id="L162">            codeQuality.setCollectorItemId(sonarProject.getId());</span>
+<span class="nc" id="L163">            codeQualityRepository.save(codeQuality);</span>
+        }
+<span class="nc" id="L165">    }</span>
+
+    private CodeQuality currentCodeQuality(SonarProject project, JSONObject request) {
+
+        try {
+<span class="nc" id="L170">                JsonParser jsonParser = new JsonParser();</span>
+<span class="nc" id="L171">                JsonObject gsonObject = (JsonObject)jsonParser.parse(request.toString());</span>
+<span class="nc" id="L172">                JsonObject prjData = gsonObject.getAsJsonObject(&quot;project&quot;);</span>
+<span class="nc" id="L173">                CodeQuality codeQuality = new CodeQuality();</span>
+<span class="nc" id="L174">                codeQuality.setType(CodeQualityType.StaticAnalysis);</span>
+<span class="nc" id="L175">                codeQuality.setName(str(prjData, NAME));</span>
+<span class="nc" id="L176">                codeQuality.setUrl(str(prjData, DSHBRD_URL));</span>
+<span class="nc" id="L177">                codeQuality.setTimestamp(getTimestamp(request,ANALYSIS_TIME));</span>
+<span class="nc" id="L178">                codeQuality.setVersion(str(gsonObject,VERSION));</span>
+<span class="nc" id="L179">                JsonObject prjMetrics = gsonObject.getAsJsonObject(&quot;qualityGate&quot;);</span>
+
+                //Obtain missing metrics not in conditions
+<span class="nc" id="L182">                CodeQualityMetric qualityGateMetric = new CodeQualityMetric();</span>
+<span class="nc" id="L183">                qualityGateMetric.setName(&quot;quality_gate_details&quot;);</span>
+<span class="nc" id="L184">                qualityGateMetric.setValue(strSafe(gsonObject,&quot;qualityGate&quot;));</span>
+<span class="nc" id="L185">                codeQuality.getMetrics().add(qualityGateMetric);</span>
+
+<span class="nc" id="L187">                qualityGateMetric.setName(&quot;alert_status&quot;);</span>
+<span class="nc" id="L188">                qualityGateMetric.setValue(str(prjMetrics,&quot;status&quot;));</span>
+<span class="nc" id="L189">                codeQuality.getMetrics().add(qualityGateMetric);</span>
+
+<span class="nc bnc" id="L191" title="All 2 branches missed.">            for (Object metricObj : prjMetrics.getAsJsonArray(CDT)) {</span>
+<span class="nc" id="L192">                    JsonObject metricJson = (JsonObject) metricObj;</span>
+
+<span class="nc" id="L194">                    CodeQualityMetric metric = new CodeQualityMetric(str(metricJson, METRIC));</span>
+<span class="nc" id="L195">                    metric.setValue(str(metricJson, VALUE));</span>
+<span class="nc bnc" id="L196" title="All 2 branches missed.">                    if (metric.getName().equals(&quot;sqale_index&quot;)) {</span>
+<span class="nc" id="L197">                        metric.setFormattedValue(format(str(metricJson, VALUE)));</span>
+<span class="nc bnc" id="L198" title="All 2 branches missed.">                    } else if (strSafe(metricJson, VALUE).indexOf(&quot;.&quot;) &gt; 0) {</span>
+<span class="nc" id="L199">                        metric.setFormattedValue(str(metricJson, VALUE) + &quot;%&quot; );</span>
+<span class="nc bnc" id="L200" title="All 2 branches missed.">                    } else if (strSafe(metricJson, VALUE).matches(&quot;\\d+&quot;)) {</span>
+<span class="nc" id="L201">                        metric.setFormattedValue(String.format(&quot;%,d&quot;, integer(metricJson, VALUE)));</span>
+                    } else {
+<span class="nc" id="L203">                        metric.setFormattedValue(str(metricJson, VALUE));</span>
+                    }
+<span class="nc" id="L205">                    codeQuality.getMetrics().add(metric);</span>
+<span class="nc" id="L206">                }</span>
+
+<span class="nc" id="L208">                return codeQuality;</span>
+
+<span class="nc" id="L210">        }  catch (RestClientException rce) {</span>
+<span class="nc" id="L211">            LOG.error(&quot;Rest Client Exception: &quot; + project + &quot;:&quot; + rce.getMessage());</span>
+        }
+
+<span class="nc" id="L214">        return null;</span>
+    }
+
+    private boolean isNewQualityData(SonarProject project, CodeQuality codeQuality) {
+<span class="nc bnc" id="L218" title="All 2 branches missed.">        return codeQualityRepository.findByCollectorItemIdAndTimestamp(</span>
+<span class="nc" id="L219">                project.getId(), codeQuality.getTimestamp()) == null;</span>
+    }
+
+    private boolean isNewProject(SonarCollector collector, SonarProject application) {
+<span class="nc bnc" id="L223" title="All 2 branches missed.">        return sonarProjectRepository.findSonarProject(</span>
+<span class="nc" id="L224">                collector.getId(), application.getInstanceUrl(), application.getProjectId()) == null;</span>
+    }
+
+    private String str(JsonObject json, String key) {
+<span class="nc" id="L228">        Object obj = json.get(key);</span>
+<span class="nc bnc" id="L229" title="All 2 branches missed.">        return obj == null ? null : obj.toString().replaceAll(&quot;\&quot;&quot;,&quot;&quot;);</span>
+    }
+
+    private String str(JSONObject json, String key) {
+<span class="nc" id="L233">        Object obj = json.get(key);</span>
+<span class="nc bnc" id="L234" title="All 2 branches missed.">        return obj == null ? null : obj.toString().replaceAll(&quot;\&quot;&quot;,&quot;&quot;);</span>
+    }
+
+    private String strSafe(JsonObject json, String key) {
+<span class="nc" id="L238">        Object obj = json.get(key);</span>
+<span class="nc bnc" id="L239" title="All 2 branches missed.">        return obj == null ? &quot;&quot; : obj.toString();</span>
+    }
+
+    private Integer integer(JsonObject json, String key) {
+<span class="nc" id="L243">        Object obj = json.get(key);</span>
+<span class="nc bnc" id="L244" title="All 2 branches missed.">        return obj == null ? null : Integer.valueOf(obj.toString().replaceAll(&quot;\&quot;&quot;,&quot;&quot;));</span>
+    }
+
+    private String format(String duration) {
+<span class="nc" id="L248">        long durationInMinutes = Long.parseLong(duration);</span>
+<span class="nc bnc" id="L249" title="All 2 branches missed.">        if (durationInMinutes == 0) {</span>
+<span class="nc" id="L250">            return &quot;0&quot;;</span>
+        }
+<span class="nc bnc" id="L252" title="All 2 branches missed.">        boolean isNegative = durationInMinutes &lt; 0;</span>
+<span class="nc" id="L253">        Long absDuration = Math.abs(durationInMinutes);</span>
+
+<span class="nc" id="L255">        int days = ((Double) ((double) absDuration / HOURS_IN_DAY / 60)).intValue();</span>
+<span class="nc" id="L256">        Long remainingDuration =  absDuration - (days * HOURS_IN_DAY * 60);</span>
+<span class="nc" id="L257">        int hours = ((Double) (remainingDuration.doubleValue() / 60)).intValue();</span>
+<span class="nc" id="L258">        remainingDuration = remainingDuration - (hours * 60);</span>
+<span class="nc" id="L259">        int minutes = remainingDuration.intValue();</span>
+
+<span class="nc" id="L261">        return format(days, hours, minutes, isNegative);</span>
+    }
+
+    @SuppressWarnings(&quot;PMD&quot;)
+    private static String format(int days, int hours, int minutes, boolean isNegative) {
+<span class="nc" id="L266">        StringBuilder message = new StringBuilder();</span>
+<span class="nc bnc" id="L267" title="All 2 branches missed.">        if (days &gt; 0) {</span>
+<span class="nc bnc" id="L268" title="All 2 branches missed.">            message.append(String.format(DAYS_FORMAT, isNegative ? (-1 * days) : days));</span>
+        }
+<span class="nc bnc" id="L270" title="All 2 branches missed.">        if (displayHours(days, hours)) {</span>
+<span class="nc" id="L271">            addSpaceIfNeeded(message);</span>
+<span class="nc bnc" id="L272" title="All 4 branches missed.">            message.append(String.format(HOURS_FORMAT, isNegative &amp;&amp; message.length() == 0 ? (-1 * hours) : hours));</span>
+        }
+<span class="nc bnc" id="L274" title="All 2 branches missed.">        if (displayMinutes(days, hours, minutes)) {</span>
+<span class="nc" id="L275">            addSpaceIfNeeded(message);</span>
+<span class="nc bnc" id="L276" title="All 4 branches missed.">            message.append(String.format(MINUTES_FORMAT, isNegative &amp;&amp; message.length() == 0 ? (-1 * minutes) : minutes));</span>
+        }
+<span class="nc" id="L278">        return message.toString();</span>
+    }
+
+    private static void addSpaceIfNeeded(StringBuilder message) {
+<span class="nc bnc" id="L282" title="All 2 branches missed.">        if (message.length() &gt; 0) {</span>
+<span class="nc" id="L283">            message.append(&quot; &quot;);</span>
+        }
+<span class="nc" id="L285">    }</span>
+
+    private static boolean displayHours(int days, int hours) {
+<span class="nc bnc" id="L288" title="All 4 branches missed.">        return hours &gt; 0 &amp;&amp; days &lt; 10;</span>
+    }
+
+    private static boolean displayMinutes(int days, int hours, int minutes) {
+<span class="nc bnc" id="L292" title="All 6 branches missed.">        return minutes &gt; 0 &amp;&amp; hours &lt; 10 &amp;&amp; days == 0;</span>
+    }
+
+    private long getTimestamp(JSONObject json, String key) {
+<span class="nc" id="L296">        Object obj = json.get(key);</span>
+<span class="nc bnc" id="L297" title="All 2 branches missed.">        if (obj != null) {</span>
+            try {
+<span class="nc" id="L299">                return new SimpleDateFormat(DATE_FORMAT).parse(obj.toString().replaceAll(&quot;\&quot;&quot;,&quot;&quot;)).getTime();</span>
+<span class="nc" id="L300">            } catch (java.text.ParseException e) {</span>
+<span class="nc" id="L301">                LOG.error(obj + &quot; is not in expected format &quot; + DATE_FORMAT, e);</span>
+            }
+        }
+<span class="nc" id="L304">        return 0;</span>
+    }
+
+    /**
+     * Sync code quality static analysis data from one server to the another
+     * @param request
+     * @return
+     * @throws HygieiaException
+     */
+    public ResponseEntity&lt;String&gt; syncData(SonarDataSyncRequest request) throws HygieiaException {
+
+<span class="nc" id="L315">        String getVersionEpt = &quot;/api/server/version&quot;;</span>
+<span class="nc" id="L316">        List&lt;SonarProject&gt; updatedProjects = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L317">        String from = request.getSyncFrom();</span>
+<span class="nc" id="L318">        String to = request.getSyncTo();</span>
+<span class="nc" id="L319">        boolean isSync = request.getIsSync();</span>
+<span class="nc" id="L320">        final AtomicInteger index = new AtomicInteger();</span>
+<span class="nc" id="L321">        final AtomicInteger compIndex = new AtomicInteger();</span>
+<span class="nc" id="L322">        HttpHeaders httpHeaders = new HttpHeaders();</span>
+        Collector collector;
+
+        try {
+<span class="nc bnc" id="L326" title="All 4 branches missed.">            if (Strings.isNullOrEmpty(from) || Strings.isNullOrEmpty(to)) {</span>
+<span class="nc" id="L327">                throw new HygieiaException(&quot;sonar server host names should not be null or empty&quot;, HygieiaException.INVALID_CONFIGURATION);</span>
+            }
+<span class="nc" id="L329">            collector = collectorRepository.findByName(&quot;Sonar&quot;);</span>
+<span class="nc bnc" id="L330" title="All 2 branches missed.">            if (collector == null) {</span>
+<span class="nc" id="L331">                throw new HygieiaException(&quot;Collector not found&quot;, HygieiaException.COLLECTOR_CREATE_ERROR);</span>
+            }
+<span class="nc" id="L333">        } catch (Exception e) {</span>
+<span class="nc" id="L334">            throw new HygieiaException(e.getMessage(), e.getCause(), false, true);</span>
+<span class="nc" id="L335">        }</span>
+<span class="nc" id="L336">        List&lt;SonarProject&gt; projects = getSonarProjects(to);</span>
+<span class="nc" id="L337">        projects.stream().forEach(project -&gt; {</span>
+<span class="nc" id="L338">            String projectName = project.getProjectName();</span>
+<span class="nc" id="L339">            Optional&lt;SonarProject&gt; existingSonarProjectOpt = Optional.ofNullable(sonarProjectRepository.findSonarProjectByProjectName(</span>
+<span class="nc" id="L340">                    collector.getId(), from, projectName));</span>
+<span class="nc" id="L341">            existingSonarProjectOpt.ifPresent(eSonarProject -&gt; {</span>
+<span class="nc" id="L342">                eSonarProject.setProjectId(project.getProjectId());</span>
+<span class="nc" id="L343">                eSonarProject.setInstanceUrl(to);</span>
+<span class="nc" id="L344">                updatedProjects.add(eSonarProject);</span>
+<span class="nc" id="L345">                updateComponent(eSonarProject, isSync, compIndex);</span>
+<span class="nc" id="L346">                LOG.info((index.getAndIncrement() + &quot; : &quot; + projectName + &quot;'s project id &amp; instance url updated&quot;));</span>
+<span class="nc" id="L347">            });</span>
+<span class="nc" id="L348">        });</span>
+
+<span class="nc" id="L350">        String math = updatedProjects.size() + &quot;/&quot; + projects.size();</span>
+<span class="nc" id="L351">        String message = math + &quot; sonar collector items and &quot; + compIndex + &quot; dashboard components can be updated&quot;;</span>
+<span class="nc bnc" id="L352" title="All 2 branches missed.">        if (isSync) {</span>
+<span class="nc" id="L353">            sonarProjectRepository.save(updatedProjects);</span>
+<span class="nc" id="L354">            message = math + &quot; sonar collector items and &quot; + compIndex + &quot; dashboard components updated&quot;;</span>
+        }
+<span class="nc" id="L356">        LOG.info(message);</span>
+<span class="nc" id="L357">        return ResponseEntity.ok(message);</span>
+    }
+
+    /**
+     * Get code quality projects
+     * @param serverUrl
+     * @return List
+     * @throws HygieiaException
+     */
+    private List&lt;SonarProject&gt; getSonarProjects(String serverUrl) throws HygieiaException {
+
+<span class="nc" id="L368">        String getProjectsEpt = serverUrl + &quot;/api/components/search?qualifiers=TRK&amp;ps=500&quot;;</span>
+<span class="nc" id="L369">        JSONParser jsonParser = new JSONParser();</span>
+<span class="nc" id="L370">        JSONArray jsonArray = new JSONArray();</span>
+<span class="nc" id="L371">        List&lt;SonarProject&gt; projects = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L372">        String sonarApiToken = settings.getSonarDataSyncSettings().getToken();</span>
+<span class="nc" id="L373">        String userId= settings.getSonarDataSyncSettings().getUserId();</span>
+<span class="nc" id="L374">        String passCode = settings.getSonarDataSyncSettings().getPassCode();</span>
+<span class="nc" id="L375">        RestUserInfo restUserInfo = new RestUserInfo(userId, passCode, sonarApiToken);</span>
+<span class="nc" id="L376">        HttpHeaders httpHeaders = settings.getSonarDataSyncSettings().getHeaders(restUserInfo);</span>
+
+        try {
+<span class="nc" id="L379">            ResponseEntity&lt;String&gt; response = restClient.makeRestCallGet(getProjectsEpt, httpHeaders);</span>
+<span class="nc bnc" id="L380" title="All 2 branches missed.">            if (!response.getStatusCode().equals(HttpStatus.OK)) {</span>
+<span class="nc" id="L381">                throw new HygieiaException(response.getBody(), HygieiaException.INVALID_CONFIGURATION);</span>
+            }
+<span class="nc" id="L383">            JSONObject responseBody = (JSONObject) jsonParser.parse(response.getBody());</span>
+<span class="nc" id="L384">            Optional&lt;Object&gt; pagingOpt = Optional.ofNullable(responseBody.get(&quot;paging&quot;));</span>
+<span class="nc bnc" id="L385" title="All 2 branches missed.">            long totalProjects = pagingOpt.isPresent() ? (Long) ((JSONObject) pagingOpt.get()).get(&quot;total&quot;) : 0;</span>
+<span class="nc bnc" id="L386" title="All 2 branches missed.">            long pageSize = pagingOpt.isPresent() ? (Long) ((JSONObject) pagingOpt.get()).get(&quot;pageSize&quot;) : 1;</span>
+<span class="nc" id="L387">            int pages = (int) Math.ceil((double) totalProjects / pageSize);</span>
+
+<span class="nc bnc" id="L389" title="All 2 branches missed.">            if (totalProjects &lt;= pageSize) {</span>
+<span class="nc" id="L390">                jsonArray.addAll((JSONArray) responseBody.get(&quot;components&quot;));</span>
+            } else {
+<span class="nc bnc" id="L392" title="All 2 branches missed.">                for (int start = 1; start &lt;= pages; start++) {</span>
+<span class="nc" id="L393">                    String urlFinal = getProjectsEpt + &quot;&amp;p=&quot; + start;</span>
+<span class="nc" id="L394">                    response = restClient.makeRestCallGet(urlFinal, httpHeaders);</span>
+<span class="nc" id="L395">                    JSONObject jsonObjectResponse = (JSONObject) jsonParser.parse(response.getBody());</span>
+<span class="nc" id="L396">                    jsonArray.addAll((JSONArray) jsonObjectResponse.get(&quot;components&quot;));</span>
+                }
+            }
+<span class="nc" id="L399">        } catch (Exception e) {</span>
+<span class="nc" id="L400">            throw new HygieiaException(e.getMessage(), HygieiaException.INVALID_CONFIGURATION);</span>
+<span class="nc" id="L401">        }</span>
+<span class="nc" id="L402">        jsonArray.forEach(jsonObj -&gt; {</span>
+<span class="nc" id="L403">            JSONObject prjData = (JSONObject) jsonObj;</span>
+<span class="nc" id="L404">            SonarProject project = new SonarProject();</span>
+<span class="nc" id="L405">            project.setInstanceUrl(serverUrl);</span>
+<span class="nc" id="L406">            project.setProjectId((String) Optional.ofNullable(prjData.get(&quot;id&quot;)).orElse(null));</span>
+<span class="nc" id="L407">            project.setProjectName((String) Optional.ofNullable(prjData.get(&quot;name&quot;)).orElse(null));</span>
+<span class="nc" id="L408">            projects.add(project);</span>
+<span class="nc" id="L409">        });</span>
+<span class="nc" id="L410">        return projects;</span>
+    }
+
+    /**
+     * Updated the component's code quality collector items' project id and instance url
+     * @param eSonarProject
+     * @param isSync
+     * @param compIndex
+     */
+    private void updateComponent(SonarProject eSonarProject, boolean isSync, @Nullable AtomicInteger compIndex) {
+<span class="nc" id="L420">        List&lt;Component&gt; components = componentRepository.findByCodeQualityCollectorItems(eSonarProject.getId());</span>
+<span class="nc" id="L421">        List&lt;CollectorItem&gt; codeQualityCollectorItems = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L422">        components.forEach(component -&gt; {</span>
+<span class="nc" id="L423">            component.getCollectorItems(CollectorType.CodeQuality).forEach(collectorItem -&gt; {</span>
+<span class="nc bnc" id="L424" title="All 2 branches missed.">                if (eSonarProject.getProjectName().equals((String) collectorItem.getOptions().get(&quot;projectName&quot;))) {</span>
+<span class="nc" id="L425">                    collectorItem.getOptions().put(&quot;projectId&quot;, eSonarProject.getProjectId());</span>
+<span class="nc" id="L426">                    collectorItem.getOptions().put(&quot;instanceUrl&quot;, eSonarProject.getInstanceUrl());</span>
+<span class="nc" id="L427">                    collectorItem.setLastUpdated(System.currentTimeMillis());</span>
+<span class="nc bnc" id="L428" title="All 2 branches missed.">                    if (null != compIndex) {</span>
+<span class="nc" id="L429">                        compIndex.getAndIncrement();</span>
+                    }
+                }
+<span class="nc" id="L432">                codeQualityCollectorItems.add(collectorItem);</span>
+<span class="nc" id="L433">            });</span>
+<span class="nc" id="L434">            Map&lt;CollectorType, List&lt;CollectorItem&gt;&gt; collectorItems = component.getCollectorItems();</span>
+<span class="nc" id="L435">            collectorItems.put(CollectorType.CodeQuality, codeQualityCollectorItems);</span>
+<span class="nc" id="L436">            component.setCollectorItems(collectorItems);</span>
+<span class="nc bnc" id="L437" title="All 2 branches missed.">            if (isSync) {</span>
+<span class="nc" id="L438">                componentRepository.save(component);</span>
+            }
+<span class="nc" id="L440">        });</span>
+<span class="nc" id="L441">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

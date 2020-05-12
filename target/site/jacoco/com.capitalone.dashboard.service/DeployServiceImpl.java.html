@@ -1,0 +1,413 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DeployServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.service</a> &gt; <span class="el_source">DeployServiceImpl.java</span></div><h1>DeployServiceImpl.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.service;
+
+import com.capitalone.dashboard.misc.HygieiaException;
+import com.capitalone.dashboard.model.Collector;
+import com.capitalone.dashboard.model.CollectorItem;
+import com.capitalone.dashboard.model.CollectorType;
+import com.capitalone.dashboard.model.Component;
+import com.capitalone.dashboard.model.DataResponse;
+import com.capitalone.dashboard.model.EnvironmentComponent;
+import com.capitalone.dashboard.model.EnvironmentStatus;
+import com.capitalone.dashboard.model.deploy.DeployableUnit;
+import com.capitalone.dashboard.model.deploy.Environment;
+import com.capitalone.dashboard.model.deploy.Server;
+import com.capitalone.dashboard.repository.CollectorItemRepository;
+import com.capitalone.dashboard.repository.CollectorRepository;
+import com.capitalone.dashboard.repository.ComponentRepository;
+import com.capitalone.dashboard.repository.EnvironmentComponentRepository;
+import com.capitalone.dashboard.repository.EnvironmentStatusRepository;
+import com.capitalone.dashboard.request.CollectorRequest;
+import com.capitalone.dashboard.request.DeployDataCreateRequest;
+import com.google.common.base.Predicate;
+import com.google.common.collect.Iterables;
+import org.apache.commons.lang.StringUtils;
+import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.w3c.dom.Document;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+
+import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
+import static com.capitalone.dashboard.service.DeployServiceImpl.RundeckXMLParser.getAttributeValue;
+import static com.capitalone.dashboard.service.DeployServiceImpl.RundeckXMLParser.getChildNodeAttribute;
+import static com.capitalone.dashboard.service.DeployServiceImpl.RundeckXMLParser.getChildNodeValue;
+
+@Service
+public class DeployServiceImpl implements DeployService {
+
+<span class="fc" id="L54">    private static final Pattern INSTANCE_URL_PATTERN = Pattern.compile(&quot;https?://[^/]*&quot;);</span>
+    private static final String DEFAULT_COLLECTOR_NAME = &quot;Jenkins&quot;;
+    private static final String PARAM = &quot;Param&quot;;
+
+    private final ComponentRepository componentRepository;
+    private final EnvironmentComponentRepository environmentComponentRepository;
+    private final EnvironmentStatusRepository environmentStatusRepository;
+    private final CollectorRepository collectorRepository;
+    private final CollectorItemRepository collectorItemRepository;
+    private final CollectorService collectorService;
+
+    @Autowired
+    public DeployServiceImpl(ComponentRepository componentRepository,
+                             EnvironmentComponentRepository environmentComponentRepository,
+                             EnvironmentStatusRepository environmentStatusRepository,
+<span class="fc" id="L69">                             CollectorRepository collectorRepository, CollectorItemRepository collectorItemRepository, CollectorService collectorService) {</span>
+<span class="fc" id="L70">        this.componentRepository = componentRepository;</span>
+<span class="fc" id="L71">        this.environmentComponentRepository = environmentComponentRepository;</span>
+<span class="fc" id="L72">        this.environmentStatusRepository = environmentStatusRepository;</span>
+<span class="fc" id="L73">        this.collectorRepository = collectorRepository;</span>
+<span class="fc" id="L74">        this.collectorItemRepository = collectorItemRepository;</span>
+<span class="fc" id="L75">        this.collectorService = collectorService;</span>
+<span class="fc" id="L76">    }</span>
+
+    @Override
+    public DataResponse&lt;List&lt;Environment&gt;&gt; getDeployStatus(ObjectId componentId) {
+<span class="fc" id="L80">        Component component = componentRepository.findOne(componentId);</span>
+
+<span class="fc" id="L82">        Collection&lt;CollectorItem&gt; cis = component.getCollectorItems()</span>
+<span class="fc" id="L83">                .get(CollectorType.Deployment);</span>
+
+<span class="fc" id="L85">        return getDeployStatus(cis);</span>
+    }
+
+    private DataResponse&lt;List&lt;Environment&gt;&gt; getDeployStatus(Collection&lt;CollectorItem&gt; deployCollectorItems) {
+<span class="fc" id="L89">        List&lt;Environment&gt; environments = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L90">        long lastExecuted = 0;</span>
+
+<span class="pc bpc" id="L92" title="1 of 2 branches missed.">        if (deployCollectorItems == null) {</span>
+<span class="nc" id="L93">            return new DataResponse&lt;&gt;(environments, 0);</span>
+        }
+
+        // We will assume that if the component has multiple deployment collectors
+        // then each collector will have a different url which means each Environment will be different
+<span class="fc bfc" id="L98" title="All 2 branches covered.">        for (CollectorItem item : deployCollectorItems) {</span>
+<span class="fc" id="L99">            ObjectId collectorItemId = item.getId();</span>
+
+<span class="fc" id="L101">            List&lt;EnvironmentComponent&gt; components = environmentComponentRepository</span>
+<span class="fc" id="L102">                    .findByCollectorItemId(collectorItemId);</span>
+<span class="fc" id="L103">            List&lt;EnvironmentStatus&gt; statuses = environmentStatusRepository</span>
+<span class="fc" id="L104">                    .findByCollectorItemId(collectorItemId);</span>
+
+<span class="fc" id="L106">            groupByEnvironment(</span>
+<span class="fc" id="L107">                    components).forEach((env, value) -&gt; {</span>
+<span class="fc" id="L108">                environments.add(env);</span>
+<span class="fc" id="L109">                value.forEach(envComponent -&gt; env.getUnits().add(</span>
+<span class="fc" id="L110">                        new DeployableUnit(envComponent, servers(envComponent,</span>
+                                statuses))));
+<span class="fc" id="L112">            });</span>
+
+<span class="fc" id="L114">            Collector collector = collectorRepository</span>
+<span class="fc" id="L115">                    .findOne(item.getCollectorId());</span>
+
+<span class="fc bfc" id="L117" title="All 2 branches covered.">            if (collector.getLastExecuted() &gt; lastExecuted) {</span>
+<span class="fc" id="L118">                lastExecuted = collector.getLastExecuted();</span>
+            }
+<span class="fc" id="L120">        }</span>
+<span class="fc" id="L121">        return new DataResponse&lt;&gt;(environments, lastExecuted);</span>
+    }
+
+    private Map&lt;Environment, List&lt;EnvironmentComponent&gt;&gt; groupByEnvironment(
+            List&lt;EnvironmentComponent&gt; components) {
+<span class="fc" id="L126">        Map&lt;Environment, Map&lt;String, EnvironmentComponent&gt;&gt; trackingMap = new LinkedHashMap&lt;&gt;();</span>
+        //two conditions to overwrite the value for the specific component
+<span class="fc" id="L128">        components.forEach(component -&gt; {</span>
+<span class="fc" id="L129">            Environment env = new Environment(component.getEnvironmentName(),</span>
+<span class="fc" id="L130">                    component.getEnvironmentUrl());</span>
+<span class="fc bfc" id="L131" title="All 2 branches covered.">            if (!trackingMap.containsKey(env)) {</span>
+<span class="fc" id="L132">                trackingMap.put(env, new LinkedHashMap&lt;&gt;());</span>
+            }
+<span class="pc bpc" id="L134" title="1 of 2 branches missed.">            if (trackingMap.get(env).get(component.getComponentName()) == null ||</span>
+<span class="nc" id="L135">                    component.getAsOfDate() &gt; trackingMap.get(env)</span>
+<span class="nc bnc" id="L136" title="All 2 branches missed.">                            .get(component.getComponentName()).getAsOfDate()) {</span>
+<span class="fc" id="L137">                trackingMap.get(env).put(component.getComponentName(), component);</span>
+            }
+<span class="fc" id="L139">        });</span>
+
+        //flatten the deeper map into a list
+<span class="fc" id="L142">        return trackingMap.entrySet().stream()</span>
+<span class="fc" id="L143">                .map(e -&gt; new AbstractMap.SimpleEntry&lt;&gt;(e.getKey(),</span>
+<span class="fc" id="L144">                        e.getValue().entrySet().stream().map(Map.Entry::getValue).collect(Collectors.toList())))</span>
+<span class="fc" id="L145">                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));</span>
+    }
+
+    private Iterable&lt;Server&gt; servers(final EnvironmentComponent component,
+                                     List&lt;EnvironmentStatus&gt; statuses) {
+<span class="fc" id="L150">        return Iterables.transform(</span>
+<span class="fc" id="L151">                Iterables.filter(statuses, new ComponentMatches(component)),</span>
+                new ToServer());
+    }
+
+    private class ComponentMatches implements Predicate&lt;EnvironmentStatus&gt; {
+        private EnvironmentComponent component;
+
+<span class="fc" id="L158">        public ComponentMatches(EnvironmentComponent component) {</span>
+<span class="fc" id="L159">            this.component = component;</span>
+<span class="fc" id="L160">        }</span>
+
+        @Override
+        public boolean apply(EnvironmentStatus environmentStatus) {
+<span class="fc bfc" id="L164" title="All 2 branches covered.">            return Objects.equals(environmentStatus.getEnvironmentName(), component.getEnvironmentName())</span>
+<span class="fc bfc" id="L165" title="All 2 branches covered.">                    &amp;&amp; Objects.equals(environmentStatus.getComponentName(), component.getComponentName());</span>
+        }
+    }
+
+<span class="fc" id="L169">    private class ToServer implements com.google.common.base.Function&lt;EnvironmentStatus, Server&gt; {</span>
+        @Override
+        public Server apply(EnvironmentStatus status) {
+<span class="fc" id="L172">            return new Server(status.getResourceName(), status.isOnline());</span>
+        }
+    }
+
+
+    protected EnvironmentComponent createDeploy(DeployDataCreateRequest request) throws HygieiaException {
+        /*
+          Step 1: create Collector if not there
+          Step 2: create Collector item if not there
+          Step 3: Insert build data if new. If existing, update it.
+         */
+<span class="fc" id="L183">        Collector collector = createCollector(request);</span>
+
+<span class="pc bpc" id="L185" title="1 of 2 branches missed.">        if (collector == null) {</span>
+<span class="nc" id="L186">            throw new HygieiaException(&quot;Failed creating Deploy collector.&quot;, HygieiaException.COLLECTOR_CREATE_ERROR);</span>
+        }
+
+<span class="fc" id="L189">        CollectorItem collectorItem = createCollectorItem(collector, request);</span>
+
+<span class="pc bpc" id="L191" title="1 of 2 branches missed.">        if (collectorItem == null) {</span>
+<span class="nc" id="L192">            throw new HygieiaException(&quot;Failed creating Deploy collector item.&quot;, HygieiaException.COLLECTOR_ITEM_CREATE_ERROR);</span>
+        }
+
+<span class="fc" id="L195">        EnvironmentComponent deploy = createEnvComponent(collectorItem, request);</span>
+
+<span class="pc bpc" id="L197" title="1 of 2 branches missed.">        if (deploy == null) {</span>
+<span class="nc" id="L198">            throw new HygieiaException(&quot;Failed inserting/updating Deployment information.&quot;, HygieiaException.ERROR_INSERTING_DATA);</span>
+        }
+
+<span class="fc" id="L201">        return deploy;</span>
+
+    }
+
+    @Override
+    public String create(DeployDataCreateRequest request) throws HygieiaException {
+<span class="fc" id="L207">        EnvironmentComponent deploy = createDeploy(request);</span>
+<span class="fc" id="L208">        return deploy.getId().toString();</span>
+    }
+
+    @Override
+    public String createV2(DeployDataCreateRequest request) throws HygieiaException {
+<span class="fc" id="L213">        EnvironmentComponent deploy = createDeploy(request);</span>
+<span class="fc" id="L214">        return String.format(&quot;%s,%s&quot;, deploy.getId().toString(), deploy.getCollectorItemId().toString());</span>
+
+    }
+
+    @Override
+    public DataResponse&lt;List&lt;Environment&gt;&gt; getDeployStatus(String applicationName) {
+<span class="fc" id="L220">        List&lt;Collector&gt; collectorList = collectorRepository.findByCollectorType(CollectorType.Deployment);</span>
+<span class="pc bpc" id="L221" title="1 of 2 branches missed.">        for (Collector collector : collectorList) {</span>
+<span class="fc" id="L222">            List&lt;CollectorItem&gt; cis = collectorItemRepository.findByOptionsAndDeployedApplicationName(collector.getId(), applicationName);</span>
+<span class="fc bfc" id="L223" title="All 2 branches covered.">            if (!cis.isEmpty()) {</span>
+<span class="fc" id="L224">                return getDeployStatus(cis);</span>
+            }
+<span class="fc" id="L226">        }</span>
+<span class="nc" id="L227">        return new DataResponse&lt;&gt;(null, 0);</span>
+    }
+
+    private Collector createCollector(DeployDataCreateRequest request) {
+<span class="fc" id="L231">        CollectorRequest collectorReq = new CollectorRequest();</span>
+<span class="fc" id="L232">        String collectorName = request.getCollectorName();</span>
+<span class="fc bfc" id="L233" title="All 2 branches covered.">        if (StringUtils.isBlank(collectorName)) {</span>
+<span class="fc" id="L234">            collectorName = DEFAULT_COLLECTOR_NAME;</span>
+        }
+<span class="fc" id="L236">        collectorReq.setName(collectorName);</span>
+<span class="fc" id="L237">        collectorReq.setCollectorType(CollectorType.Deployment);</span>
+<span class="fc" id="L238">        Collector col = collectorReq.toCollector();</span>
+<span class="fc" id="L239">        col.setEnabled(true);</span>
+<span class="fc" id="L240">        col.setOnline(true);</span>
+<span class="fc" id="L241">        col.setLastExecuted(System.currentTimeMillis());</span>
+
+<span class="fc" id="L243">        Map&lt;String, Object&gt; allOptions = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L244">        allOptions.put(&quot;applicationName&quot;, &quot;&quot;);</span>
+<span class="fc" id="L245">        allOptions.put(&quot;instanceUrl&quot;, &quot;&quot;);</span>
+<span class="fc" id="L246">        col.getAllFields().putAll(allOptions);</span>
+<span class="fc" id="L247">        col.getUniqueFields().putAll(allOptions);</span>
+<span class="fc" id="L248">        return collectorService.createCollector(col);</span>
+    }
+
+    private CollectorItem createCollectorItem(Collector collector, DeployDataCreateRequest request) {
+<span class="fc" id="L252">        CollectorItem tempCi = new CollectorItem();</span>
+<span class="fc" id="L253">        tempCi.setCollectorId(collector.getId());</span>
+<span class="fc" id="L254">        tempCi.setDescription(request.getAppName());</span>
+<span class="fc" id="L255">        tempCi.setPushed(true);</span>
+<span class="fc" id="L256">        tempCi.setLastUpdated(System.currentTimeMillis());</span>
+<span class="fc" id="L257">        tempCi.setNiceName(request.getNiceName());</span>
+<span class="fc" id="L258">        Map&lt;String, Object&gt; option = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L259">        option.put(&quot;applicationName&quot;, request.getAppName());</span>
+<span class="fc" id="L260">        option.put(&quot;instanceUrl&quot;, request.getInstanceUrl());</span>
+<span class="fc" id="L261">        tempCi.getOptions().putAll(option);</span>
+
+<span class="fc" id="L263">        return collectorService.createCollectorItem(tempCi);</span>
+    }
+
+    private EnvironmentComponent createEnvComponent(CollectorItem collectorItem, DeployDataCreateRequest request) {
+<span class="fc" id="L267">        EnvironmentComponent deploy = environmentComponentRepository.</span>
+<span class="fc" id="L268">                findByUniqueKey(collectorItem.getId(), request.getArtifactName(), request.getArtifactName(), request.getEndTime());</span>
+<span class="pc bpc" id="L269" title="1 of 2 branches missed.">        if (deploy == null) {</span>
+<span class="fc" id="L270">            deploy = new EnvironmentComponent();</span>
+        }
+
+<span class="fc" id="L273">        deploy.setAsOfDate(System.currentTimeMillis());</span>
+<span class="fc" id="L274">        deploy.setCollectorItemId(collectorItem.getId());</span>
+<span class="fc" id="L275">        deploy.setComponentID(request.getArtifactGroup());</span>
+<span class="fc" id="L276">        deploy.setComponentName(request.getArtifactName());</span>
+<span class="fc" id="L277">        deploy.setComponentVersion(request.getArtifactVersion());</span>
+<span class="fc" id="L278">        deploy.setCollectorItemId(collectorItem.getId());</span>
+<span class="fc" id="L279">        deploy.setEnvironmentName(request.getEnvName());</span>
+<span class="fc" id="L280">        deploy.setEnvironmentUrl(request.getInstanceUrl());</span>
+<span class="fc" id="L281">        deploy.setJobUrl(request.getJobUrl());</span>
+<span class="fc" id="L282">        deploy.setDeployTime(request.getEndTime());</span>
+<span class="fc" id="L283">        deploy.setDeployed(&quot;SUCCESS&quot;.equalsIgnoreCase(request.getDeployStatus()));</span>
+
+<span class="fc" id="L285">        return environmentComponentRepository.save(deploy); // Save = Update (if ID present) or Insert (if ID not there)</span>
+    }
+
+    protected DeployDataCreateRequest createRundeck(Document doc, Map&lt;String, String[]&gt; parameters, String executionId, String status) throws HygieiaException {
+<span class="fc" id="L289">        Node executionNode = doc.getElementsByTagName(&quot;execution&quot;).item(0);</span>
+<span class="fc" id="L290">        Node jobNode = executionNode.getFirstChild();</span>
+<span class="fc" id="L291">        RundeckXMLParser p = new RundeckXMLParser(doc);</span>
+<span class="fc" id="L292">        DeployDataCreateRequest request = new DeployDataCreateRequest();</span>
+<span class="fc" id="L293">        request.setExecutionId(executionId);</span>
+<span class="fc" id="L294">        request.setDeployStatus(status.toUpperCase());</span>
+<span class="fc" id="L295">        String appNameOption = evaluateParametersOrDefault(parameters, p, &quot;appName&quot;, false, &quot;appName&quot;);</span>
+<span class="pc bpc" id="L296" title="1 of 2 branches missed.">        if (appNameOption == null) {</span>
+<span class="fc" id="L297">            appNameOption = getAttributeValue(executionNode, &quot;project&quot;);</span>
+        }
+<span class="fc" id="L299">        request.setAppName(appNameOption);</span>
+<span class="fc" id="L300">        request.setEnvName(evaluateParametersOrDefault(parameters, p, &quot;envName&quot;, true,&quot;env&quot;));</span>
+<span class="fc" id="L301">        request.setArtifactName(evaluateParametersOrDefault(parameters, p, &quot;artifactName&quot;, true, &quot;artifactName&quot;));</span>
+<span class="fc" id="L302">        request.setArtifactGroup(evaluateParametersOrDefault(parameters, p, &quot;artifactGroup&quot;, false, &quot;group&quot;));</span>
+<span class="fc" id="L303">        request.setArtifactVersion(evaluateParametersOrDefault(parameters, p, &quot;artifactVersion&quot;, true, &quot;version&quot;));</span>
+<span class="fc" id="L304">        request.setNiceName(evaluateParametersOrDefault(parameters, p, &quot;niceName&quot;, false, &quot;niceName&quot;));</span>
+<span class="fc" id="L305">        request.setStartedBy(getChildNodeValue(executionNode, &quot;user&quot;));</span>
+<span class="fc" id="L306">        request.setStartTime(Long.valueOf(getChildNodeAttribute(executionNode, &quot;date-started&quot;, &quot;unixtime&quot;)));</span>
+<span class="fc" id="L307">        request.setEndTime(Long.valueOf(getChildNodeAttribute(executionNode, &quot;date-ended&quot;, &quot;unixtime&quot;)));</span>
+<span class="fc" id="L308">        request.setDuration(request.getEndTime() - request.getStartTime());</span>
+<span class="fc" id="L309">        request.setJobUrl(getAttributeValue(executionNode, &quot;href&quot;));</span>
+<span class="fc" id="L310">        Matcher matcher = INSTANCE_URL_PATTERN.matcher(request.getJobUrl());</span>
+<span class="pc bpc" id="L311" title="1 of 2 branches missed.">        if (matcher.find()) {</span>
+<span class="fc" id="L312">            request.setInstanceUrl(matcher.group());</span>
+        }
+<span class="fc" id="L314">        request.setJobName(getChildNodeValue(jobNode, &quot;name&quot;));</span>
+<span class="fc" id="L315">        return request;</span>
+    }
+
+    @Override
+    public String createRundeckBuild(Document doc, Map&lt;String, String[]&gt; parameters, String executionId, String status) throws HygieiaException {
+<span class="fc" id="L320">        DeployDataCreateRequest request = createRundeck(doc, parameters, executionId, status);</span>
+<span class="fc" id="L321">        return create(request);</span>
+    }
+
+    @Override
+    public String createRundeckBuildV2(Document doc, Map&lt;String, String[]&gt; parameters, String executionId, String status) throws HygieiaException {
+<span class="fc" id="L326">        DeployDataCreateRequest request = createRundeck(doc, parameters, executionId, status);</span>
+<span class="fc" id="L327">        return createV2(request);</span>
+    }
+
+    private String evaluateParametersOrDefault(Map&lt;String, String[]&gt; params,
+                                               RundeckXMLParser p, String name, boolean required, String defaultOptions) throws HygieiaException {
+        String output;
+<span class="pc bpc" id="L333" title="1 of 2 branches missed.">        if (params.containsKey(name)) {</span>
+<span class="nc" id="L334">            output = params.get(name)[0];</span>
+<span class="pc bpc" id="L335" title="1 of 2 branches missed.">        } else if (params.containsKey(name + PARAM)) {</span>
+<span class="nc" id="L336">            output = p.findMatchingOption(params.get(name + PARAM));</span>
+        } else {
+<span class="fc" id="L338">            output = p.findMatchingOptionRegex(defaultOptions);</span>
+        }
+<span class="pc bpc" id="L340" title="1 of 4 branches missed.">        if (required &amp;&amp; output == null) {</span>
+<span class="nc" id="L341">            throw new HygieiaException(name + &quot; option is required and not available.  &quot; +</span>
+                    &quot;Please check the documentation and provide the option value.&quot;, 500);
+        }
+<span class="fc" id="L344">        return output;</span>
+    }
+
+    static class RundeckXMLParser {
+
+        private NodeList nodes;
+        private final Map&lt;String, Node&gt; optionNameNode;
+
+<span class="fc" id="L352">        public RundeckXMLParser(Document doc) {</span>
+<span class="fc" id="L353">            nodes = doc.getElementsByTagName(&quot;option&quot;);</span>
+<span class="fc" id="L354">            optionNameNode = IntStream.range(0, nodes.getLength())</span>
+<span class="fc" id="L355">                    .mapToObj(i -&gt; nodes.item(i))</span>
+<span class="fc" id="L356">                    .collect(Collectors.toMap(n -&gt; getAttributeValue(n, &quot;name&quot;), Function.identity()));</span>
+<span class="fc" id="L357">        }</span>
+
+        public static String getAttributeValue(Node node, String attributeName) {
+<span class="fc bfc" id="L360" title="All 2 branches covered.">            if (node == null) {</span>
+<span class="fc" id="L361">                return null;</span>
+            }
+<span class="fc" id="L363">            Node attributeNode = node.getAttributes().getNamedItem(attributeName);</span>
+<span class="pc bpc" id="L364" title="1 of 2 branches missed.">            if (attributeNode == null) {</span>
+<span class="nc" id="L365">                return null;</span>
+            } else {
+<span class="fc" id="L367">                return attributeNode.getNodeValue();</span>
+            }
+        }
+
+        public static String getChildNodeAttribute(Node node, String childNodeName, String attributeName) {
+<span class="fc" id="L372">            return actOnChildNode(node, childNodeName, n -&gt; getAttributeValue(n, attributeName));</span>
+        }
+
+        public static String getChildNodeValue(Node node, String childNodeName) {
+<span class="fc" id="L376">            return actOnChildNode(node, childNodeName, Node::getNodeValue);</span>
+        }
+
+        public static String actOnChildNode(Node node, String childNodeName, Function&lt;Node, String&gt; valueSupplier) {
+<span class="fc" id="L380">            Optional&lt;Node&gt; childNode = getNamedChild(node, childNodeName);</span>
+<span class="fc" id="L381">            return childNode.map(valueSupplier::apply).orElse(null);</span>
+        }
+
+        public static Optional&lt;Node&gt; getNamedChild(Node node, String childNodeName) {
+<span class="fc" id="L385">            NodeList nodes = node.getChildNodes();</span>
+<span class="fc" id="L386">            return IntStream.range(0, nodes.getLength())</span>
+<span class="fc" id="L387">                    .filter(i -&gt; Objects.equals(childNodeName, nodes.item(i).getNodeName()))</span>
+<span class="fc" id="L388">                    .mapToObj(i -&gt; nodes.item(i))</span>
+<span class="fc" id="L389">                    .findFirst();</span>
+        }
+
+        public String findMatchingOption(String... optionNames) {
+<span class="nc" id="L393">            List&lt;String&gt; options = Arrays.asList(optionNames);</span>
+<span class="nc" id="L394">            return options.stream().filter(opt -&gt; optionNameNode.keySet().contains(opt))</span>
+<span class="nc" id="L395">                    .findFirst()</span>
+<span class="nc" id="L396">                    .map(opt -&gt; getAttributeValue(optionNameNode.get(opt), &quot;value&quot;)).orElse(null);</span>
+
+
+        }
+
+        public String findMatchingOptionRegex(String regexOption){
+<span class="fc" id="L402">            Pattern p = Pattern.compile(&quot;.*?&quot;+regexOption+&quot;.*&quot;,Pattern.CASE_INSENSITIVE );</span>
+<span class="fc" id="L403">            Node node = optionNameNode.entrySet()</span>
+<span class="fc" id="L404">                    .stream()</span>
+<span class="fc" id="L405">                    .filter(entry -&gt; p.matcher(entry.getKey()).matches())</span>
+<span class="fc" id="L406">                    .map(Map.Entry::getValue)</span>
+<span class="fc" id="L407">                    .collect(Collectors.toSet()).stream().findFirst().orElse(null);</span>
+<span class="fc" id="L408">            return  getAttributeValue(node,&quot;value&quot;);</span>
+        }
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

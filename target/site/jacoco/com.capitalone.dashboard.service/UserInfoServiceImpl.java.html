@@ -1,0 +1,231 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserInfoServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.service</a> &gt; <span class="el_source">UserInfoServiceImpl.java</span></div><h1>UserInfoServiceImpl.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.service;
+
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Properties;
+
+import com.capitalone.dashboard.auth.AuthProperties;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.stereotype.Component;
+
+import com.capitalone.dashboard.auth.exceptions.DeleteLastAdminException;
+import com.capitalone.dashboard.auth.exceptions.UserNotFoundException;
+import com.capitalone.dashboard.model.AuthType;
+import com.capitalone.dashboard.model.UserInfo;
+import com.capitalone.dashboard.model.UserRole;
+import com.capitalone.dashboard.repository.UserInfoRepository;
+import com.google.common.collect.Sets;
+
+import javax.naming.AuthenticationException;
+import javax.naming.Context;
+import javax.naming.NamingEnumeration;
+import javax.naming.NamingException;
+import javax.naming.directory.Attribute;
+import javax.naming.directory.InitialDirContext;
+import javax.naming.directory.SearchControls;
+import javax.naming.directory.SearchResult;
+
+@Component
+public class UserInfoServiceImpl implements UserInfoService {
+
+<span class="fc" id="L35">	private static final Logger LOGGER = Logger.getLogger(UserInfoServiceImpl.class);</span>
+
+	private UserInfoRepository userInfoRepository;
+	@Autowired
+	private AuthProperties authProperties;
+
+	private InitialDirContext initialDirContext;
+	
+	@Autowired
+<span class="fc" id="L44">	public UserInfoServiceImpl(UserInfoRepository userInfoRepository, AuthProperties authProperties) {</span>
+<span class="fc" id="L45">		this.userInfoRepository = userInfoRepository;</span>
+<span class="fc" id="L46">		this.authProperties = authProperties;</span>
+<span class="fc" id="L47">	}</span>
+	
+	@Override
+	public Collection&lt;? extends GrantedAuthority&gt; getAuthorities(String username, String firstName, String middleName, String lastName, String displayName, String emailAddress, AuthType authType) {
+<span class="fc" id="L51">		Collection&lt;UserRole&gt; roles = getUserInfo(username, firstName, middleName, lastName, displayName, emailAddress, authType).getAuthorities();</span>
+<span class="fc" id="L52">		return createAuthorities(roles);</span>
+	}
+	
+	@Override
+	public UserInfo getUserInfo(String username, String firstName, String middleName, String lastName, String displayName, String emailAddress, AuthType authType) {
+<span class="fc" id="L57">		UserInfo userInfo = userInfoRepository.findByUsernameAndAuthType(username, authType);</span>
+<span class="fc bfc" id="L58" title="All 2 branches covered.">		if(userInfo == null) {</span>
+<span class="fc" id="L59">			userInfo = createUserInfo(username, firstName, middleName, lastName, displayName, emailAddress, authType);</span>
+<span class="fc" id="L60">			userInfoRepository.save(userInfo);</span>
+		}
+		
+		// TODO: This will give the standard &quot;admin&quot; user admin privledges, might want
+		// to bootstrap in an admin user, or something better than this.
+<span class="fc" id="L65">		addAdminRoleToStandardAdminUser(userInfo);</span>
+		
+<span class="fc" id="L67">		return userInfo;</span>
+	}
+	
+    @Override
+    public Collection&lt;UserInfo&gt; getUsers() {
+<span class="fc" id="L72">        return Sets.newHashSet(userInfoRepository.findAll());</span>
+    }
+
+    @Override
+    public UserInfo promoteToAdmin(String username, AuthType authType) {
+<span class="fc" id="L77">        UserInfo user = userInfoRepository.findByUsernameAndAuthType(username, authType);</span>
+<span class="fc bfc" id="L78" title="All 2 branches covered.">        if (user == null) {</span>
+<span class="fc" id="L79">            throw new UserNotFoundException(username, authType);</span>
+        }
+        
+<span class="fc" id="L82">        user.getAuthorities().add(UserRole.ROLE_ADMIN);</span>
+<span class="fc" id="L83">        UserInfo savedUser = userInfoRepository.save(user);</span>
+<span class="fc" id="L84">        return savedUser;</span>
+    }
+    
+    @Override
+    public UserInfo demoteFromAdmin(String username, AuthType authType) {
+<span class="fc" id="L89">        int numberOfAdmins = userInfoRepository.findByAuthoritiesIn(UserRole.ROLE_ADMIN).size();</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">        if(numberOfAdmins &lt;= 1) {</span>
+<span class="fc" id="L91">            throw new DeleteLastAdminException();</span>
+        }
+<span class="fc" id="L93">        UserInfo user = userInfoRepository.findByUsernameAndAuthType(username, authType);</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">        if (user == null) {</span>
+<span class="fc" id="L95">            throw new UserNotFoundException(username, authType);</span>
+        }
+        
+<span class="fc" id="L98">        user.getAuthorities().remove(UserRole.ROLE_ADMIN);</span>
+<span class="fc" id="L99">        UserInfo savedUser = userInfoRepository.save(user);</span>
+<span class="fc" id="L100">        return savedUser;</span>
+    }
+
+	private UserInfo createUserInfo(String username, String firstName, String middleName, String lastName, String displayName, String emailAddress, AuthType authType) {
+<span class="fc" id="L104">		UserInfo userInfo = new UserInfo();</span>
+<span class="fc" id="L105">		userInfo.setUsername(username);</span>
+<span class="fc" id="L106">		userInfo.setFirstName(firstName);</span>
+<span class="fc" id="L107">		userInfo.setMiddleName(middleName);</span>
+<span class="fc" id="L108">		userInfo.setLastName(lastName);</span>
+<span class="fc" id="L109">		userInfo.setDisplayName(displayName);</span>
+<span class="fc" id="L110">		userInfo.setEmailAddress(emailAddress);</span>
+<span class="fc" id="L111">		userInfo.setAuthType(authType);</span>
+<span class="fc" id="L112">		userInfo.setAuthorities(Sets.newHashSet(UserRole.ROLE_USER));</span>
+		
+<span class="fc" id="L114">		return userInfo;</span>
+	}
+
+	private void addAdminRoleToStandardAdminUser(UserInfo userInfo) {
+<span class="pc bpc" id="L118" title="1 of 4 branches missed.">		if (&quot;admin&quot;.equals(userInfo.getUsername()) &amp;&amp; AuthType.STANDARD == userInfo.getAuthType()) {</span>
+<span class="fc" id="L119">			userInfo.getAuthorities().add(UserRole.ROLE_ADMIN);</span>
+		}
+<span class="fc" id="L121">	}</span>
+	
+	private Collection&lt;? extends GrantedAuthority&gt; createAuthorities(Collection&lt;UserRole&gt; authorities) {
+<span class="fc" id="L124">		Collection&lt;GrantedAuthority&gt; grantedAuthorities = new HashSet&lt;GrantedAuthority&gt;();</span>
+<span class="fc" id="L125">		authorities.forEach(authority -&gt; {</span>
+<span class="fc" id="L126">			grantedAuthorities.add(new SimpleGrantedAuthority(authority.name())); </span>
+<span class="fc" id="L127">		});</span>
+		
+<span class="fc" id="L129">		return grantedAuthorities;</span>
+	}
+
+	/**
+	 * Can be called to check validity of userId when creating a dashboard remotely via api
+	 * @param userId
+	 * @param authType
+	 * @return
+	 */
+	@Override
+	public boolean isUserValid(String userId, AuthType authType) {
+<span class="fc bfc" id="L140" title="All 2 branches covered.">		if (userInfoRepository.findByUsernameAndAuthType(userId, authType) != null) {</span>
+<span class="fc" id="L141">			return true;</span>
+		} else {
+<span class="pc bpc" id="L143" title="1 of 2 branches missed.">			if (authType == AuthType.LDAP) {</span>
+				try {
+<span class="nc" id="L145">					createContext(setProperties());</span>
+<span class="nc" id="L146">					return searchLdapUser(userId);</span>
+<span class="nc" id="L147">				} catch (AuthenticationException ae) {</span>
+<span class="nc" id="L148">					LOGGER.error(&quot;LDAP bind credentials are incorrect&quot;, ae);</span>
+<span class="nc" id="L149">					return false;</span>
+<span class="nc" id="L150">				} catch (NamingException ne) {</span>
+<span class="nc" id="L151">					LOGGER.error(&quot;Failed to query ldap for &quot; + userId, ne);</span>
+<span class="nc" id="L152">					return false;</span>
+				}
+			} else {
+<span class="fc" id="L155">				return false;</span>
+			}
+		}
+	}
+
+	public boolean searchLdapUser(String searchId) throws NamingException {
+<span class="fc" id="L161">		boolean searchResult = false;</span>
+		try {
+<span class="fc" id="L163">			SearchControls ctrls = new SearchControls();</span>
+<span class="fc" id="L164">			ctrls.setSearchScope(SearchControls.SUBTREE_SCOPE);</span>
+
+<span class="fc" id="L166">			String searchBase = &quot;&quot;;</span>
+<span class="fc" id="L167">			String searchFilter = &quot;&quot;;</span>
+<span class="pc bpc" id="L168" title="1 of 2 branches missed.">			if(!StringUtils.isBlank(authProperties.getAdUrl())) {</span>
+<span class="fc" id="L169">				searchBase = authProperties.getAdSvcRootDn();</span>
+<span class="fc" id="L170">				searchFilter = &quot;(&amp;(objectClass=user)(userPrincipalName=&quot;	+ searchId + &quot;@&quot; + authProperties.getAdDomain() + &quot;))&quot;;</span>
+			} else {
+<span class="nc" id="L172">				searchBase = authProperties.getLdapUserDnPattern().substring(</span>
+<span class="nc" id="L173">						authProperties.getLdapUserDnPattern().indexOf(',') + 1,</span>
+<span class="nc" id="L174">						authProperties.getLdapUserDnPattern().length()</span>
+				);
+<span class="nc" id="L176">				searchFilter = &quot;(&amp;(objectClass=user)(sAMAccountName=&quot;	+ searchId + &quot;))&quot;;</span>
+			}
+
+<span class="fc" id="L179">			NamingEnumeration&lt;SearchResult&gt; results = this.initialDirContext.search(searchBase, searchFilter, ctrls);</span>
+			// if searchId cannot be found in service accounts, then search in users
+<span class="fc bfc" id="L181" title="All 2 branches covered.">			results = (!results.hasMore()) ? this.initialDirContext.search(authProperties.getAdUserRootDn(),searchFilter,ctrls) : results;</span>
+
+<span class="fc bfc" id="L183" title="All 2 branches covered.">			if (!results.hasMore()) {</span>
+<span class="fc" id="L184">				return searchResult;</span>
+			}
+
+<span class="fc" id="L187">			SearchResult result = results.next();</span>
+
+<span class="fc" id="L189">			Attribute memberOf = result.getAttributes().get(&quot;memberOf&quot;);</span>
+<span class="pc bpc" id="L190" title="1 of 2 branches missed.">			if (memberOf != null) {</span>
+<span class="fc" id="L191">				searchResult = true;</span>
+			}
+		} finally {
+<span class="fc" id="L194">			this.initialDirContext.close();</span>
+		}
+
+<span class="fc" id="L197">		return searchResult;</span>
+	}
+
+	private Properties setProperties() {
+<span class="nc" id="L201">		Properties props = new Properties();</span>
+<span class="nc" id="L202">		props.put(Context.INITIAL_CONTEXT_FACTORY, &quot;com.sun.jndi.ldap.LdapCtxFactory&quot;);</span>
+<span class="nc" id="L203">		props.put(&quot;java.naming.security.protocol&quot;, &quot;ssl&quot;);</span>
+<span class="nc" id="L204">		props.put(Context.SECURITY_AUTHENTICATION, &quot;simple&quot;);</span>
+
+		try {
+<span class="nc bnc" id="L207" title="All 2 branches missed.">			if (!StringUtils.isBlank(authProperties.getAdUrl())) {</span>
+<span class="nc" id="L208">				props.put(Context.PROVIDER_URL, authProperties.getAdUrl());</span>
+<span class="nc" id="L209">				props.put(Context.SECURITY_PRINCIPAL, authProperties.getLdapBindUser() + &quot;@&quot; + authProperties.getAdDomain());</span>
+			} else {
+<span class="nc" id="L211">				props.put(Context.PROVIDER_URL, authProperties.getLdapServerUrl());</span>
+<span class="nc" id="L212">				props.put(Context.SECURITY_PRINCIPAL, StringUtils.replace(authProperties.getLdapUserDnPattern(), &quot;{0}&quot;, authProperties.getLdapBindUser()));</span>
+			}
+<span class="nc" id="L214">			props.put(Context.SECURITY_CREDENTIALS, authProperties.getLdapBindPass());</span>
+<span class="nc" id="L215">		} catch (Exception e) {</span>
+<span class="nc" id="L216">			LOGGER.error(&quot;Failed to retrieve properties for InitialDirContext&quot;, e);</span>
+<span class="nc" id="L217">		}</span>
+
+<span class="nc" id="L219">		return props;</span>
+	}
+
+	public InitialDirContext createContext(Properties props) throws NamingException {
+<span class="nc" id="L223">		this.initialDirContext =  new InitialDirContext(props);</span>
+<span class="nc" id="L224">		return initialDirContext;</span>
+	}
+
+	public void setInitialContext(InitialDirContext initialContext){
+<span class="fc" id="L228">		this.initialDirContext =  initialContext;</span>
+<span class="fc" id="L229">	}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

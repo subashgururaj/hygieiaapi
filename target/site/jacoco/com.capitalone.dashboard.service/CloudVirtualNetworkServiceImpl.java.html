@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CloudVirtualNetworkServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.service</a> &gt; <span class="el_source">CloudVirtualNetworkServiceImpl.java</span></div><h1>CloudVirtualNetworkServiceImpl.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.service;
+
+import com.capitalone.dashboard.config.collector.CloudConfig;
+import com.capitalone.dashboard.model.CloudVirtualNetwork;
+import com.capitalone.dashboard.model.CollectorItem;
+import com.capitalone.dashboard.model.CollectorType;
+import com.capitalone.dashboard.model.Component;
+import com.capitalone.dashboard.model.NameValue;
+import com.capitalone.dashboard.repository.CloudVirtualNetworkRepository;
+import com.capitalone.dashboard.repository.ComponentRepository;
+import com.capitalone.dashboard.response.CloudVirtualNetworkAggregatedResponse;
+import com.capitalone.dashboard.util.HygieiaUtils;
+import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
+
+import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+@Service
+
+public class CloudVirtualNetworkServiceImpl implements CloudVirtualNetworkService {
+
+
+    private final CloudVirtualNetworkRepository cloudVirtualNetworkRepository;
+
+    private final ComponentRepository componentRepository;
+
+    @Autowired
+    public CloudVirtualNetworkServiceImpl(CloudVirtualNetworkRepository cloudVirtualNetworkRepository,
+<span class="fc" id="L36">                                          ComponentRepository cloudConfigRepository) {</span>
+<span class="fc" id="L37">        this.cloudVirtualNetworkRepository = cloudVirtualNetworkRepository;</span>
+<span class="fc" id="L38">        this.componentRepository = cloudConfigRepository;</span>
+<span class="fc" id="L39">    }</span>
+
+    private CollectorItem getCollectorItem(ObjectId componentId) {
+<span class="nc" id="L42">        Component component = componentRepository.findOne(componentId);</span>
+<span class="nc bnc" id="L43" title="All 2 branches missed.">        if (CollectionUtils.isEmpty(component.getCollectorItems())) return null;</span>
+<span class="nc" id="L44">        return component.getCollectorItems().get(CollectorType.Cloud).get(0);</span>
+    }
+
+    @Override
+    public List&lt;ObjectId&gt; upsertVirtualNetwork(List&lt;CloudVirtualNetwork&gt; virtualNetworks) {
+<span class="nc" id="L49">        List&lt;ObjectId&gt; objectIds = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L50" title="All 2 branches missed.">        for (CloudVirtualNetwork cv : virtualNetworks) {</span>
+<span class="nc" id="L51">            CloudVirtualNetwork existing = getVirtualNetworkDetails(cv.getVirtualNetworkId());</span>
+<span class="nc bnc" id="L52" title="All 2 branches missed.">            if (existing == null) {</span>
+<span class="nc" id="L53">                CloudVirtualNetwork in = cloudVirtualNetworkRepository.save(cv);</span>
+<span class="nc" id="L54">                objectIds.add(in.getId());</span>
+<span class="nc" id="L55">            } else {</span>
+                try {
+<span class="nc" id="L57">                    HygieiaUtils.mergeObjects(existing, cv);</span>
+<span class="nc" id="L58">                    cloudVirtualNetworkRepository.save(existing);</span>
+<span class="nc" id="L59">                    objectIds.add(existing.getId());</span>
+<span class="nc" id="L60">                } catch (IllegalAccessException | InvocationTargetException e) {</span>
+                    //logger.error(&quot;Error saving cloud instance info for instanceID: &quot; + ci.getSubnetId(), e);
+<span class="nc" id="L62">                }</span>
+            }
+<span class="nc" id="L64">        }</span>
+<span class="nc" id="L65">        return objectIds;</span>
+    }
+
+    public Collection&lt;CloudVirtualNetwork&gt; getVirtualNetworkDetails (CollectorItem item) {
+<span class="nc" id="L69">        Collection&lt;CloudVirtualNetwork&gt; vns = new HashSet&lt;&gt;();</span>
+<span class="nc bnc" id="L70" title="All 4 branches missed.">        if ((item != null) &amp;&amp; (item instanceof CloudConfig)) {</span>
+<span class="nc" id="L71">            CloudConfig config = (CloudConfig) item;</span>
+<span class="nc" id="L72">            vns.addAll(getVirtualNetworkDetailsByTags(config.getTags()));</span>
+        }
+<span class="nc" id="L74">        return vns;</span>
+    }
+
+    @Override
+    public Collection&lt;CloudVirtualNetwork&gt; getVirtualNetworkDetails(Object componentId) {
+<span class="nc" id="L79">        return null;</span>
+    }
+
+    @Override
+    public CloudVirtualNetwork getVirtualNetworkDetails(String virtualNetworkId) {
+<span class="nc" id="L84">        return cloudVirtualNetworkRepository.findByVirtualNetworkId(virtualNetworkId);</span>
+    }
+
+    @Override
+    public Collection&lt;CloudVirtualNetwork&gt; getVirtualNetworkDetails(List&lt;String&gt; virtualNetworkId) {
+<span class="nc" id="L89">        return null;</span>
+    }
+
+    @Override
+    public Collection&lt;CloudVirtualNetwork&gt; getVirtualNetworkDetailsByTags(List&lt;NameValue&gt; tags) {
+<span class="nc" id="L94">        Set&lt;CloudVirtualNetwork&gt; subnets = new HashSet&lt;&gt;();</span>
+<span class="nc bnc" id="L95" title="All 2 branches missed.">        for (NameValue nv : tags) {</span>
+<span class="nc" id="L96">            subnets.addAll(cloudVirtualNetworkRepository.findByTagNameAndValue(nv.getName(), nv.getValue()));</span>
+<span class="nc" id="L97">        }</span>
+<span class="nc" id="L98">        return subnets;</span>
+    }
+
+    @Override
+    public CloudVirtualNetworkAggregatedResponse getVirtualNetworkAggregated(ObjectId componentId) {
+<span class="nc" id="L103">        return null;</span>
+    }
+
+    @Override
+    public CloudVirtualNetworkAggregatedResponse getVirtualNetworkAggregatedByTags(List&lt;NameValue&gt; tags) {
+<span class="nc" id="L108">        return null;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

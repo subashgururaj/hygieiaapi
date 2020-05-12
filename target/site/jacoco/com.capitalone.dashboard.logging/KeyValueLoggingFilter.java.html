@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>KeyValueLoggingFilter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.logging</a> &gt; <span class="el_source">KeyValueLoggingFilter.java</span></div><h1>KeyValueLoggingFilter.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.logging;
+
+import java.io.IOException;
+
+import javax.servlet.Filter;
+import javax.servlet.FilterChain;
+import javax.servlet.FilterConfig;
+import javax.servlet.ServletException;
+import javax.servlet.ServletRequest;
+import javax.servlet.ServletResponse;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletRequestWrapper;
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpServletResponseWrapper;
+import javax.servlet.http.HttpSession;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+
+import com.capitalone.dashboard.model.KeyValueLog;
+
+<span class="fc" id="L25">public class KeyValueLoggingFilter implements Filter {</span>
+    
+    protected static final String USER_AUTHORITIES = &quot;USER_AUTHORITIES&quot;;
+    protected static final String USER_DETAILS = &quot;USER_DETAILS&quot;;
+    protected static final String USER_NAME = &quot;USER_NAME&quot;;
+    protected static final String SESSION_ID = &quot;SESSION_ID&quot;;
+    protected static final String STATUS_CODE = &quot;STATUS_CODE&quot;;
+    protected static final String REQUEST_METHOD = &quot;REQUEST_METHOD&quot;;
+    protected static final String REQUEST_URL = &quot;REQUEST_URL&quot;;
+    protected static final String REMOTE_ADDRESS = &quot;REMOTE_ADDRESS&quot;;
+    protected static final String APPLICATION_NAME = &quot;APPLICATION_NAME&quot;;
+    protected static final String APPLICATION_VERSION = &quot;APPLICATION_VERSION&quot;;
+
+<span class="fc" id="L38">    private static final Logger LOGGER = LoggerFactory.getLogger(KeyValueLoggingFilter.class);</span>
+    
+    @Value(&quot;${application.name}&quot;)
+    private String appName;
+    
+    @Value(&quot;${version.number}&quot;)
+    private String version;
+    
+    @Override
+    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain) throws IOException, ServletException {
+<span class="fc" id="L48">        HttpServletRequestWrapper requestWrapper = new HttpServletRequestWrapper((HttpServletRequest)request);</span>
+<span class="fc" id="L49">        HttpServletResponseWrapper responseWrapper = new HttpServletResponseWrapper((HttpServletResponse) response);</span>
+        
+<span class="fc" id="L51">        chain.doFilter(request, response);</span>
+        
+<span class="fc" id="L53">        LOGGER.info(getLogEntry(requestWrapper, responseWrapper).toString());</span>
+<span class="fc" id="L54">    }</span>
+
+    private KeyValueLog getLogEntry(HttpServletRequest request, HttpServletResponse response) {
+        
+<span class="fc" id="L58">        KeyValueLog log = new KeyValueLog();</span>
+<span class="fc" id="L59">        log.with(REMOTE_ADDRESS, request.getRemoteAddr())</span>
+<span class="fc" id="L60">            .with(APPLICATION_NAME, appName)</span>
+<span class="fc" id="L61">            .with(APPLICATION_VERSION, version)</span>
+<span class="fc" id="L62">            .with(REQUEST_URL, request.getRequestURL().toString())</span>
+<span class="fc" id="L63">            .with(REQUEST_METHOD, request.getMethod())</span>
+<span class="fc" id="L64">            .with(STATUS_CODE, response.getStatus());</span>
+        
+<span class="fc" id="L66">        HttpSession session = request.getSession(false);</span>
+<span class="fc bfc" id="L67" title="All 2 branches covered.">        if(session != null) {</span>
+<span class="fc" id="L68">            log.with(SESSION_ID, session.getId());</span>
+        }
+        
+<span class="fc" id="L71">        Authentication user = SecurityContextHolder.getContext().getAuthentication();</span>
+<span class="pc bpc" id="L72" title="1 of 2 branches missed.">        if(user != null) {</span>
+<span class="fc" id="L73">            log.with(USER_NAME, user.getPrincipal())</span>
+<span class="fc" id="L74">                .with(USER_DETAILS, user.getDetails().toString())</span>
+<span class="fc" id="L75">                .with(USER_AUTHORITIES, user.getAuthorities().toString());</span>
+        }
+        
+        
+<span class="fc" id="L79">        return log;</span>
+    }
+
+    @Override
+    public void init(FilterConfig filterConfig) throws ServletException {
+        // noop
+<span class="nc" id="L85">    }</span>
+
+    @Override
+    public void destroy() {
+        // noop
+        
+<span class="nc" id="L91">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

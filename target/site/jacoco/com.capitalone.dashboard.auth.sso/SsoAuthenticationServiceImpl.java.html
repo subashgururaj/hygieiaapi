@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SsoAuthenticationServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.auth.sso</a> &gt; <span class="el_source">SsoAuthenticationServiceImpl.java</span></div><h1>SsoAuthenticationServiceImpl.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.auth.sso;
+
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
+
+import org.apache.log4j.Logger;
+import org.codehaus.jackson.map.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.stereotype.Component;
+
+import com.capitalone.dashboard.auth.ldap.CustomUserDetails;
+import com.google.common.collect.Sets;
+
+@Component
+<span class="fc" id="L19">public class SsoAuthenticationServiceImpl implements SsoAuthenticationService {</span>
+<span class="fc" id="L20">	private static final Logger LOGGER = Logger.getLogger(SsoAuthenticationServiceImpl.class);</span>
+
+	@Autowired
+	private SsoAuthenticationUtil ssoAuthenticationUtil;
+	
+	@Override
+	public Authentication getAuthenticationFromHeaders(Map&lt;String, String&gt; requestHeadersMap) {
+<span class="nc" id="L27">		Authentication authentication = this.getAuthenticationDataFromHeaders(requestHeadersMap);</span>
+<span class="nc" id="L28">		return authentication;</span>
+	}
+
+	private Collection&lt;? extends GrantedAuthority&gt; getAuthorities(Collection&lt;String&gt; roles) {
+<span class="nc" id="L32">		Collection&lt;GrantedAuthority&gt; authorities = Sets.newHashSet();</span>
+<span class="nc" id="L33">		roles.forEach(role -&gt; {</span>
+<span class="nc" id="L34">			authorities.add(new SimpleGrantedAuthority(role));</span>
+<span class="nc" id="L35">		});</span>
+
+<span class="nc" id="L37">		return authorities;</span>
+	}
+	
+	private Authentication getAuthenticationDataFromHeaders(Map&lt;String, String&gt; headersMap) {
+<span class="nc" id="L41">		CustomUserDetails customUserDetails = null;</span>
+		try {
+<span class="nc bnc" id="L43" title="All 2 branches missed.">			if (headersMap != null) {</span>
+<span class="nc" id="L44">				String cookiesHeader = headersMap.get(&quot;cookiesheader&quot;);</span>
+				
+<span class="nc" id="L46">				HashMap&lt;String,String&gt; userInfoDataMap = new ObjectMapper().readValue(cookiesHeader, HashMap.class);</span>
+				
+<span class="nc" id="L48">				int count = 0;</span>
+<span class="nc bnc" id="L49" title="All 2 branches missed.">				for(String header : headersMap.keySet()) {</span>
+<span class="nc" id="L50">					LOGGER.debug(&quot;Header (&quot; + ++count + &quot;.) : &quot; + header + &quot;, value : &quot; + headersMap.get(header));</span>
+<span class="nc" id="L51">				}</span>
+<span class="nc" id="L52">				LOGGER.debug(&quot;cookiesHeader : ==&gt; =====&gt; =======&gt;  &quot; + cookiesHeader);</span>
+				
+<span class="nc" id="L54">				customUserDetails = ssoAuthenticationUtil.createUser(userInfoDataMap);</span>
+<span class="nc" id="L55">				return ssoAuthenticationUtil.createSuccessfulAuthentication(customUserDetails);</span>
+			} else {
+<span class="nc" id="L57">				LOGGER.error(&quot;SsoAuthenticationServiceImpl.getAuthenticationDataFromHeaders() :=&gt; userInfo is Null&quot;);</span>
+			}
+<span class="nc" id="L59">		} catch (Exception exception) {</span>
+<span class="nc" id="L60">			LOGGER.error(&quot;SsoAuthenticationServiceImpl.getAuthenticationDataFromHeaders() :=&gt; Exception :&quot;</span>
+					+ exception);
+<span class="nc" id="L62">		}</span>
+<span class="nc" id="L63">		return null;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

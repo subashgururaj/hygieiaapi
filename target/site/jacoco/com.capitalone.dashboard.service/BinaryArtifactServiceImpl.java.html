@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BinaryArtifactServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.service</a> &gt; <span class="el_source">BinaryArtifactServiceImpl.java</span></div><h1>BinaryArtifactServiceImpl.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.service;
+
+import com.capitalone.dashboard.model.BinaryArtifact;
+import com.capitalone.dashboard.model.Build;
+import com.capitalone.dashboard.model.DataResponse;
+import com.capitalone.dashboard.model.JobCollectorItem;
+import com.capitalone.dashboard.repository.BinaryArtifactRepository;
+import com.capitalone.dashboard.repository.BuildRepository;
+import com.capitalone.dashboard.repository.JobRepository;
+import com.capitalone.dashboard.request.BinaryArtifactCreateRequest;
+import com.capitalone.dashboard.request.BinaryArtifactSearchRequest;
+
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import org.apache.commons.lang.ObjectUtils;
+import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+@Service
+public class BinaryArtifactServiceImpl implements BinaryArtifactService {
+
+    private final BinaryArtifactRepository artifactRepository;
+    private final BuildRepository buildRepository;
+    private final JobRepository&lt;? extends JobCollectorItem&gt; jobRepository;
+
+    @Autowired
+<span class="fc" id="L30">    public BinaryArtifactServiceImpl(BinaryArtifactRepository artifactRepository, BuildRepository buildRepository, JobRepository&lt;? extends JobCollectorItem&gt; jobRepository) {</span>
+<span class="fc" id="L31">        this.artifactRepository = artifactRepository;</span>
+<span class="fc" id="L32">        this.buildRepository = buildRepository;</span>
+<span class="fc" id="L33">        this.jobRepository = jobRepository;</span>
+<span class="fc" id="L34">    }</span>
+
+    @Override
+    public DataResponse&lt;Iterable&lt;BinaryArtifact&gt;&gt; search(BinaryArtifactSearchRequest request) {
+    	
+<span class="nc" id="L39">    	Map&lt;String, Object&gt; attributes = new HashMap&lt;&gt;();</span>
+    	
+<span class="nc bnc" id="L41" title="All 2 branches missed.">    	if (request.getArtifactGroup() != null) {</span>
+<span class="nc" id="L42">    		attributes.put(BinaryArtifactRepository.ARTIFACT_GROUP_ID, request.getArtifactGroup());</span>
+    	}
+    	
+<span class="nc bnc" id="L45" title="All 2 branches missed.">    	if (request.getArtifactModule() != null) {</span>
+<span class="nc" id="L46">    		attributes.put(BinaryArtifactRepository.ARTIFACT_MODULE, request.getArtifactModule());</span>
+    	}
+    	
+<span class="nc bnc" id="L49" title="All 2 branches missed.">    	if (request.getArtifactVersion() != null) {</span>
+<span class="nc" id="L50">    		attributes.put(BinaryArtifactRepository.ARTIFACT_VERSION, request.getArtifactVersion());</span>
+    	}
+    	
+<span class="nc bnc" id="L53" title="All 2 branches missed.">    	if (request.getArtifactName() != null) {</span>
+<span class="nc" id="L54">    		attributes.put(BinaryArtifactRepository.ARTIFACT_NAME, request.getArtifactName());</span>
+    	}
+    	
+<span class="nc bnc" id="L57" title="All 2 branches missed.">    	if (request.getArtifactClassifier() != null) {</span>
+<span class="nc" id="L58">    		attributes.put(BinaryArtifactRepository.ARTIFACT_CLASSIFIER, request.getArtifactClassifier());</span>
+    	}
+    	
+<span class="nc bnc" id="L61" title="All 2 branches missed.">    	if (request.getArtifactExtension() != null) {</span>
+<span class="nc" id="L62">    		attributes.put(BinaryArtifactRepository.ARTIFACT_EXTENSION, request.getArtifactExtension());</span>
+    	}
+    	
+<span class="nc bnc" id="L65" title="All 2 branches missed.">    	if (request.getBuildId() != null) {</span>
+<span class="nc" id="L66">    		attributes.put(BinaryArtifactRepository.BUILD_INFO_ID, request.getBuildId());</span>
+    	}
+		
+<span class="nc" id="L69">		Iterable&lt;BinaryArtifact&gt; rt = artifactRepository.findByAttributes(attributes);</span>
+        
+<span class="nc" id="L71">        return new DataResponse&lt;&gt;(rt, System.currentTimeMillis());</span>
+
+    }
+    
+    private Build getBuildById(ObjectId buildId){
+<span class="nc" id="L76">    	return buildRepository.findOne(buildId);</span>
+    }
+
+    @Override
+    public String create(BinaryArtifactCreateRequest request) {
+<span class="fc" id="L81">		BinaryArtifact ba = new BinaryArtifact();</span>
+<span class="fc" id="L82">		ba.setArtifactName(request.getArtifactName());</span>
+<span class="fc" id="L83">		ba.setCanonicalName(request.getCanonicalName());</span>
+<span class="fc" id="L84">		ba.setArtifactGroupId(request.getArtifactGroup());</span>
+<span class="fc" id="L85">		ba.setArtifactVersion(request.getArtifactVersion());</span>
+<span class="pc bpc" id="L86" title="1 of 2 branches missed.">		ba.setArtifactModule(request.getArtifactModule() != null? request.getArtifactModule() : request.getArtifactName());</span>
+<span class="fc" id="L87">		ba.setArtifactClassifier(request.getArtifactClassifier());</span>
+<span class="fc" id="L88">		ba.setArtifactExtension(request.getArtifactExtension());</span>
+<span class="fc" id="L89">		ba.setTimestamp(request.getTimestamp());</span>
+
+<span class="fc" id="L91">		Map&lt;String, Object&gt; metadata = request.getMetadata();</span>
+		
+<span class="pc bpc" id="L93" title="1 of 2 branches missed.">		if (metadata != null) {</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">			for (Map.Entry&lt;String, Object&gt; e : metadata.entrySet()) {</span>
+<span class="fc" id="L95">				ba.getMetadata().put(e.getKey(), String.valueOf(e.getValue()));</span>
+<span class="fc" id="L96">			}</span>
+		}
+		
+		// Set the build information if we have it
+<span class="pc bpc" id="L100" title="3 of 4 branches missed.">		ObjectId buildId = (request.getBuildId() != null &amp;&amp; !request.getBuildId().isEmpty())?</span>
+<span class="pc" id="L101">				new ObjectId(request.getBuildId()) : null;</span>
+<span class="pc bpc" id="L102" title="1 of 2 branches missed.">		if (buildId != null) {</span>
+<span class="nc" id="L103">			setBuildInformation(ba, buildId);</span>
+		}
+		
+<span class="fc" id="L106">		BinaryArtifact existing = existing(ba, buildId);</span>
+<span class="pc bpc" id="L107" title="1 of 2 branches missed.">		if (existing == null) {</span>
+<span class="fc" id="L108">			BinaryArtifact savedArt = artifactRepository.save(ba);</span>
+<span class="pc bpc" id="L109" title="1 of 2 branches missed.">			if (savedArt == null)</span>
+<span class="nc" id="L110">				return &quot;&quot;;</span>
+<span class="fc" id="L111">			return savedArt.getId().toString();</span>
+		}
+<span class="nc" id="L113">		return existing.getId().toString();</span>
+	}
+    
+    private void setBuildInformation(BinaryArtifact ba, ObjectId buildId) {
+<span class="nc" id="L117">		Build build = getBuildById(buildId);</span>
+<span class="nc" id="L118">		ba.setBuildInfos(Arrays.asList(build));</span>
+		
+		// Attempt to deduce metadata information
+<span class="nc bnc" id="L121" title="All 2 branches missed.">		if (build != null) { </span>
+<span class="nc bnc" id="L122" title="All 2 branches missed.">			if (ba.getBuildUrl() == null) {</span>
+<span class="nc" id="L123">				ba.setBuildUrl(build.getBuildUrl());</span>
+			}
+<span class="nc bnc" id="L125" title="All 2 branches missed.">			if (ba.getBuildNumber() == null) {</span>
+<span class="nc" id="L126">				ba.setBuildNumber(build.getNumber());</span>
+			}
+			
+<span class="nc" id="L129">			JobCollectorItem ci = jobRepository.findOne(build.getCollectorItemId());</span>
+<span class="nc bnc" id="L130" title="All 2 branches missed.">			if (ci != null) {</span>
+<span class="nc bnc" id="L131" title="All 2 branches missed.">				if (ba.getInstanceUrl() == null) {</span>
+<span class="nc" id="L132">					ba.setInstanceUrl(ci.getInstanceUrl());</span>
+				}
+<span class="nc bnc" id="L134" title="All 2 branches missed.">				if (ba.getJobName() == null) {</span>
+<span class="nc" id="L135">					ba.setJobName(ci.getJobName());</span>
+				}
+<span class="nc bnc" id="L137" title="All 2 branches missed.">				if (ba.getJobUrl() == null) {</span>
+<span class="nc" id="L138">					ba.setJobUrl(ci.getJobUrl());</span>
+				}
+			}
+		}
+<span class="nc" id="L142">    }</span>
+
+
+    private BinaryArtifact existing(BinaryArtifact artifact, ObjectId buildId) {
+<span class="fc" id="L146">        Iterable&lt;BinaryArtifact&gt; bas = artifactRepository.findByAttributes(artifact.getArtifactGroupId(), artifact.getArtifactModule(), </span>
+<span class="fc" id="L147">        		artifact.getArtifactVersion(), artifact.getArtifactName(), artifact.getArtifactClassifier(), artifact.getArtifactExtension());</span>
+
+<span class="pc bpc" id="L149" title="1 of 2 branches missed.">        for (BinaryArtifact ba : bas) {</span>
+        	
+        	// could be null due to old documents
+<span class="nc bnc" id="L152" title="All 2 branches missed.">        	if (ba.getMetadata() != null </span>
+<span class="nc bnc" id="L153" title="All 2 branches missed.">        			&amp;&amp; artifact.getBuildUrl() != null</span>
+<span class="nc bnc" id="L154" title="All 2 branches missed.">        			&amp;&amp; ObjectUtils.equals(artifact.getBuildUrl(), ba.getBuildUrl())) {</span>
+<span class="nc" id="L155">                return ba;</span>
+<span class="nc bnc" id="L156" title="All 2 branches missed.">            } else if (buildId != null </span>
+<span class="nc bnc" id="L157" title="All 2 branches missed.">            		&amp;&amp; ba.getBuildInfos() != null</span>
+<span class="nc bnc" id="L158" title="All 2 branches missed.">            		&amp;&amp; findBuildId(ba.getBuildInfos(),buildId)) {</span>
+<span class="nc" id="L159">            	return ba;</span>
+            }
+<span class="nc" id="L161">        }</span>
+<span class="fc" id="L162">        return null;</span>
+    }
+
+    private boolean findBuildId(List&lt;Build&gt; builds,ObjectId buildId){
+<span class="nc" id="L166">    	return builds.stream().filter(build -&gt; buildId.equals(build.getId())).findAny().isPresent();</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

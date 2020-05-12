@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GithubDataSyncDelegate.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.webhook.datasync</a> &gt; <span class="el_source">GithubDataSyncDelegate.java</span></div><h1>GithubDataSyncDelegate.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.webhook.datasync;
+
+import com.capitalone.dashboard.model.Collector;
+import com.capitalone.dashboard.model.CollectorItem;
+import com.capitalone.dashboard.model.CollectorType;
+import com.capitalone.dashboard.model.Component;
+import com.capitalone.dashboard.model.GitRequest;
+import com.capitalone.dashboard.request.DataSyncResponse;
+import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.IterableUtils;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
+
+public class GithubDataSyncDelegate {
+<span class="fc" id="L21">    private static final Log LOG = LogFactory.getLog(GithubDataSyncDelegate.class);</span>
+
+    private DataSyncServiceImpl dataSyncServiceImpl;
+    private DataSyncUtils dataSyncUtils;
+    private static final int ZERO = 0;
+
+<span class="fc" id="L27">    public GithubDataSyncDelegate(DataSyncServiceImpl dataSyncServiceImpl, DataSyncUtils dataSyncUtils) {</span>
+<span class="fc" id="L28">        this.dataSyncServiceImpl = dataSyncServiceImpl;</span>
+<span class="fc" id="L29">        this.dataSyncUtils = dataSyncUtils;</span>
+<span class="fc" id="L30">    }</span>
+
+    public DataSyncResponse clean(Collector collector) {
+<span class="fc" id="L33">        int pages = dataSyncUtils.pages(collector);</span>
+<span class="fc" id="L34">        String collectorName = collector.getName();</span>
+<span class="fc" id="L35">        List&lt;CollectorItem&gt; collectorItems = dataSyncUtils.getAllCollectorItems(collector, pages);</span>
+<span class="pc bpc" id="L36" title="1 of 2 branches missed.">        if (CollectionUtils.isEmpty(collectorItems)) return dataSyncUtils.warn(collectorName,&quot;No collector-items found&quot;);</span>
+<span class="fc" id="L37">        int componentCount = ZERO;</span>
+<span class="fc" id="L38">        int collectorItemsCount = ZERO;</span>
+<span class="fc" id="L39">        List&lt;String&gt; componentIds = new ArrayList&lt;&gt;();</span>
+<span class="pc bpc" id="L40" title="1 of 2 branches missed.">        for (int idx = ZERO; idx &lt;= collectorItems.size(); idx++) {</span>
+<span class="fc bfc" id="L41" title="All 2 branches covered.">            if (idx == collectorItems.size()) break;</span>
+<span class="fc" id="L42">            Iterable&lt;CollectorItem&gt; suspects = dataSyncUtils.findAllCollectorItemsByOptions(collectorItems.get(idx), collector);</span>
+<span class="pc bpc" id="L43" title="1 of 2 branches missed.">            if (IterableUtils.isEmpty(suspects)) continue;</span>
+<span class="fc" id="L44">            List&lt;GitRequest&gt; grs = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L45">            List&lt;Component&gt; components = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L46">            suspects.forEach(suspect -&gt; {</span>
+<span class="fc" id="L47">                GitRequest gitRequest = dataSyncServiceImpl.getGitRequestRepository().findTopByCollectorItemIdOrderByTimestampDesc(suspect.getId());</span>
+<span class="fc" id="L48">                grs.add(gitRequest);</span>
+<span class="fc" id="L49">                List&lt;Component&gt; cs = dataSyncServiceImpl.getComponentRepository().findBySCMCollectorItemId(suspect.getId());</span>
+<span class="fc" id="L50">                components.addAll(cs);</span>
+<span class="fc" id="L51">            });</span>
+<span class="fc" id="L52">            LOG.info(&quot;collectorItem run +++&quot; + idx + &quot; of &quot; + collectorItems.size());</span>
+<span class="pc bpc" id="L53" title="1 of 2 branches missed.">            if (!CollectionUtils.isEmpty(grs)) {</span>
+<span class="fc" id="L54">                List&lt;GitRequest&gt; gs = grs.stream().filter(Objects::nonNull).collect(Collectors.toList());</span>
+<span class="fc" id="L55">                gs.sort(Comparator.comparing(GitRequest::getTimestamp).reversed());</span>
+<span class="fc" id="L56">                GitRequest pullRequest = gs.stream().filter(Objects::nonNull).findFirst().orElse(null);</span>
+<span class="pc bpc" id="L57" title="1 of 2 branches missed.">                if (Objects.nonNull(pullRequest)) {</span>
+<span class="fc" id="L58">                    CollectorItem collectorItem = dataSyncServiceImpl.getCollectorItemRepository().findOne(pullRequest.getCollectorItemId());</span>
+<span class="fc" id="L59">                    List&lt;CollectorItem&gt; suspectCollectorItems = dataSyncUtils.deleteCollectorItems(collectorItems, collectorItem, suspects);</span>
+<span class="fc" id="L60">                    collectorItemsCount += suspectCollectorItems.size();</span>
+<span class="pc bpc" id="L61" title="1 of 2 branches missed.">                    if (CollectionUtils.isEmpty(components)) continue;</span>
+<span class="fc" id="L62">                    components.forEach(component -&gt; {</span>
+<span class="fc" id="L63">                        componentIds.add(component.getId().toString());</span>
+<span class="fc" id="L64">                    });</span>
+<span class="fc" id="L65">                    int comp = dataSyncUtils.updateComponents(collector, components, collectorItem, CollectorType.SCM);</span>
+<span class="fc" id="L66">                    componentCount = componentCount + comp;</span>
+<span class="fc" id="L67">                } else {</span>
+<span class="nc" id="L68">                    componentCount = dataSyncUtils.clearDuplicateCollectorItemsAndUpdateComponents(collectorItems, componentCount, suspects, components, collector, CollectorType.SCM);</span>
+                }
+<span class="fc" id="L70">            } else {</span>
+<span class="nc" id="L71">                componentCount = dataSyncUtils.clearDuplicateCollectorItemsAndUpdateComponents(collectorItems, componentCount, suspects, components, collector, CollectorType.SCM);</span>
+            }
+        }
+<span class="fc" id="L74">        return new DataSyncResponse(componentIds, collectorItemsCount,collectorName + &quot; refresh Successful==&gt;&gt; Updated &quot; + componentCount + &quot; components and &quot; + collectorItemsCount + &quot; collectorItems.&quot;);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

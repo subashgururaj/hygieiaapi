@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TeamInventoryServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.service</a> &gt; <span class="el_source">TeamInventoryServiceImpl.java</span></div><h1>TeamInventoryServiceImpl.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.service;
+
+import com.capitalone.dashboard.model.Collector;
+import com.capitalone.dashboard.model.DataResponse;
+import com.capitalone.dashboard.model.TeamInventory;
+import com.capitalone.dashboard.repository.CollectorRepository;
+import com.capitalone.dashboard.repository.TeamInventoryRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+@Service
+public class TeamInventoryServiceImpl implements TeamInventoryService {
+
+	private final TeamInventoryRepository teamInventoryRepository;
+	private final CollectorRepository collectorRepository;
+
+	@Autowired
+	public TeamInventoryServiceImpl(TeamInventoryRepository teamInventoryRepository,
+<span class="fc" id="L19">                          CollectorRepository collectorRepository) {</span>
+<span class="fc" id="L20">		this.collectorRepository = collectorRepository;</span>
+<span class="fc" id="L21">		this.teamInventoryRepository = teamInventoryRepository;</span>
+<span class="fc" id="L22">	}</span>
+
+
+	@Override
+	public DataResponse&lt;TeamInventory&gt; getTeamData(String teamName, String teamId) {
+<span class="nc" id="L27">		TeamInventory teamInventory = teamInventoryRepository.findByNameAndTeamId(teamName,teamId);</span>
+<span class="nc" id="L28">		Collector collector = collectorRepository.findOne(teamInventory.getCollectorId());</span>
+<span class="nc" id="L29">		return new DataResponse&lt;&gt;(teamInventory, collector.getLastExecuted());</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

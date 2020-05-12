@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PerformanceServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.service</a> &gt; <span class="el_source">PerformanceServiceImpl.java</span></div><h1>PerformanceServiceImpl.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.service;
+
+import com.capitalone.dashboard.misc.HygieiaException;
+import com.capitalone.dashboard.model.Collector;
+import com.capitalone.dashboard.model.CollectorItem;
+import com.capitalone.dashboard.model.CollectorType;
+import com.capitalone.dashboard.model.Component;
+import com.capitalone.dashboard.model.DataResponse;
+import com.capitalone.dashboard.model.Performance;
+import com.capitalone.dashboard.model.PerformanceType;
+import com.capitalone.dashboard.model.QPerformance;
+import com.capitalone.dashboard.repository.CollectorRepository;
+import com.capitalone.dashboard.repository.ComponentRepository;
+import com.capitalone.dashboard.repository.PerformanceRepository;
+import com.capitalone.dashboard.request.CollectorRequest;
+import com.capitalone.dashboard.request.PerformanceCreateRequest;
+import com.capitalone.dashboard.request.PerformanceSearchRequest;
+import com.google.common.base.Objects;
+import com.google.common.collect.Iterables;
+import com.mysema.query.BooleanBuilder;
+import org.apache.commons.lang.StringUtils;
+import org.bson.types.ObjectId;
+import org.joda.time.LocalDate;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.stereotype.Service;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+@Service
+public class PerformanceServiceImpl implements PerformanceService {
+
+    private final PerformanceRepository performanceRepository;
+    private final ComponentRepository componentRepository;
+    private final CollectorRepository collectorRepository;
+    private final CollectorService collectorService;
+
+    @Autowired
+    public PerformanceServiceImpl(PerformanceRepository performanceRepository,
+                                  ComponentRepository componentRepository,
+                                  CollectorRepository collectorRepository,
+<span class="fc" id="L45">                                  CollectorService collectorService) {</span>
+<span class="fc" id="L46">        this.performanceRepository = performanceRepository;</span>
+<span class="fc" id="L47">        this.componentRepository = componentRepository;</span>
+<span class="fc" id="L48">        this.collectorRepository = collectorRepository;</span>
+<span class="fc" id="L49">        this.collectorService = collectorService;</span>
+<span class="fc" id="L50">    }</span>
+
+    @Override
+    public DataResponse&lt;Iterable&lt;Performance&gt;&gt; search(PerformanceSearchRequest request) {
+<span class="nc bnc" id="L54" title="All 2 branches missed.">        if (request == null) {</span>
+<span class="nc" id="L55">            return emptyResponse();</span>
+        }
+
+<span class="nc bnc" id="L58" title="All 2 branches missed.">        if (request.getType() == null) {</span>
+<span class="nc" id="L59">            return emptyResponse();</span>
+        }
+
+<span class="nc" id="L62">        return searchType(request);</span>
+    }
+
+    private DataResponse&lt;Iterable&lt;Performance&gt;&gt; emptyResponse() {
+<span class="nc" id="L66">        return new DataResponse&lt;&gt;(null, System.currentTimeMillis());</span>
+    }
+
+    private DataResponse&lt;Iterable&lt;Performance&gt;&gt; searchType(PerformanceSearchRequest request) {
+<span class="nc" id="L70">        CollectorItem item = getCollectorItem(request);</span>
+<span class="nc bnc" id="L71" title="All 2 branches missed.">        if (item == null) {</span>
+<span class="nc" id="L72">            return emptyResponse();</span>
+        }
+
+<span class="nc" id="L75">        QPerformance performance = new QPerformance(&quot;performance&quot;);</span>
+<span class="nc" id="L76">        BooleanBuilder builder = new BooleanBuilder();</span>
+
+<span class="nc" id="L78">        builder.and(performance.collectorItemId.eq(item.getId()));</span>
+
+<span class="nc bnc" id="L80" title="All 2 branches missed.">        if (request.getNumberOfDays() != null) {</span>
+<span class="nc" id="L81">            long endTimeTarget =</span>
+<span class="nc" id="L82">                    new LocalDate().minusDays(request.getNumberOfDays()).toDate().getTime();</span>
+<span class="nc" id="L83">            builder.and(performance.timestamp.goe(endTimeTarget));</span>
+<span class="nc bnc" id="L84" title="All 2 branches missed.">        } else if (request.validDateRange()) {</span>
+<span class="nc" id="L85">            builder.and(performance.timestamp.between(request.getDateBegins(), request.getDateEnds()));</span>
+        }
+        Iterable&lt;Performance&gt; result;
+<span class="nc bnc" id="L88" title="All 2 branches missed.">        if (request.getMax() == null) {</span>
+<span class="nc" id="L89">            result = performanceRepository.findAll(builder.getValue(), performance.timestamp.desc());</span>
+        } else {
+<span class="nc" id="L91">            PageRequest pageRequest =</span>
+<span class="nc" id="L92">                    new PageRequest(0, request.getMax(), Sort.Direction.DESC, &quot;timestamp&quot;);</span>
+<span class="nc" id="L93">            result = performanceRepository.findAll(builder.getValue(), pageRequest).getContent();</span>
+        }
+<span class="nc" id="L95">        Collector collector = collectorRepository.findOne(item.getCollectorId());</span>
+<span class="nc bnc" id="L96" title="All 2 branches missed.">        long lastExecuted = (collector == null) ? 0 : collector.getLastExecuted();</span>
+<span class="nc" id="L97">        return new DataResponse&lt;&gt;(result, lastExecuted);</span>
+    }
+
+    protected CollectorItem getCollectorItem(PerformanceSearchRequest request) {
+<span class="nc" id="L101">        Component component = componentRepository.findOne(request.getComponentId());</span>
+<span class="nc bnc" id="L102" title="All 2 branches missed.">        if (component == null) {</span>
+<span class="nc" id="L103">            return null;</span>
+        }
+
+<span class="nc" id="L106">        CollectorItem item = null;</span>
+<span class="nc" id="L107">        PerformanceType qualityType = Objects.firstNonNull(request.getType(),</span>
+                PerformanceType.ApplicationPerformance);
+<span class="nc" id="L109">        List&lt;CollectorItem&gt; items = component.getCollectorItems().get(qualityType.collectorType());</span>
+<span class="nc bnc" id="L110" title="All 2 branches missed.">        if (items != null) {</span>
+<span class="nc" id="L111">            item = Iterables.getFirst(items, null);</span>
+        }
+<span class="nc" id="L113">        return item;</span>
+    }
+
+
+    @Override
+    public String create(PerformanceCreateRequest request) throws HygieiaException {
+        /**
+         * Step 1: create Collector if not there
+         * Step 2: create Collector item if not there
+         * Step 3: Insert Quality data if new. If existing, update it.
+         */
+<span class="nc" id="L124">        Collector collector = createCollector(request.getCollectorName());</span>
+
+<span class="nc bnc" id="L126" title="All 2 branches missed.">        if (collector == null) {</span>
+<span class="nc" id="L127">            throw new HygieiaException(&quot;Failed creating code quality collector.&quot;, HygieiaException.COLLECTOR_CREATE_ERROR);</span>
+        }
+
+<span class="nc" id="L130">        CollectorItem collectorItem = createCollectorItem(collector, request);</span>
+
+<span class="nc bnc" id="L132" title="All 2 branches missed.">        if (collectorItem == null) {</span>
+<span class="nc" id="L133">            throw new HygieiaException(&quot;Failed creating code quality collector item.&quot;, HygieiaException.COLLECTOR_ITEM_CREATE_ERROR);</span>
+        }
+
+<span class="nc" id="L136">        Performance quality = createPerformance(collectorItem, request);</span>
+
+<span class="nc bnc" id="L138" title="All 2 branches missed.">        if (quality == null) {</span>
+<span class="nc" id="L139">            throw new HygieiaException(&quot;Failed inserting/updating Quality information.&quot;, HygieiaException.ERROR_INSERTING_DATA);</span>
+        }
+
+<span class="nc" id="L142">        return quality.getId().toString() + &quot;,&quot; + quality.getCollectorItemId().toString();</span>
+
+    }
+
+
+    private Collector createCollector(String collectorName) {
+<span class="nc" id="L148">        CollectorRequest collectorReq = new CollectorRequest();</span>
+<span class="nc" id="L149">        collectorReq.setName(collectorName);  //for now hardcode it.</span>
+<span class="nc" id="L150">        collectorReq.setCollectorType(CollectorType.AppPerformance);</span>
+<span class="nc" id="L151">        Collector col = collectorReq.toCollector();</span>
+<span class="nc" id="L152">        col.setEnabled(true);</span>
+<span class="nc" id="L153">        col.setOnline(true);</span>
+<span class="nc" id="L154">        col.setLastExecuted(System.currentTimeMillis());</span>
+<span class="nc" id="L155">        return collectorService.createCollector(col);</span>
+    }
+
+    private CollectorItem createCollectorItem(Collector collector, PerformanceCreateRequest request) throws HygieiaException {
+<span class="nc" id="L159">        CollectorItem tempCi = new CollectorItem();</span>
+<span class="nc" id="L160">        tempCi.setCollectorId(collector.getId());</span>
+<span class="nc" id="L161">        tempCi.setDescription(request.getProjectName());</span>
+<span class="nc" id="L162">        tempCi.setPushed(true);</span>
+<span class="nc" id="L163">        tempCi.setLastUpdated(System.currentTimeMillis());</span>
+<span class="nc" id="L164">        Map&lt;String, Object&gt; option = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L165">        option.put(&quot;projectName&quot;, request.getProjectName());</span>
+<span class="nc" id="L166">        option.put(&quot;projectId&quot;, request.getProjectId());</span>
+<span class="nc" id="L167">        option.put(&quot;instanceUrl&quot;, request.getServerUrl());</span>
+<span class="nc" id="L168">        tempCi.getOptions().putAll(option);</span>
+<span class="nc" id="L169">        tempCi.setNiceName(request.getNiceName());</span>
+
+<span class="nc bnc" id="L171" title="All 2 branches missed.">        if (StringUtils.isEmpty(tempCi.getNiceName())) {</span>
+<span class="nc" id="L172">            return collectorService.createCollectorItem(tempCi);</span>
+        }
+<span class="nc" id="L174">        return collectorService.createCollectorItemByNiceNameAndProjectId(tempCi, request.getProjectId());</span>
+    }
+
+    private Performance createPerformance(CollectorItem collectorItem, PerformanceCreateRequest request) {
+<span class="nc" id="L178">        Performance performance = performanceRepository.findByCollectorItemIdAndTimestamp(</span>
+<span class="nc" id="L179">                collectorItem.getId(), request.getTimestamp());</span>
+<span class="nc bnc" id="L180" title="All 2 branches missed.">        if (performance == null) {</span>
+<span class="nc" id="L181">            performance = new Performance();</span>
+        }
+<span class="nc bnc" id="L183" title="All 4 branches missed.">        ObjectId hygieiaId = request.getHygieiaId() != null &amp;&amp; !request.getHygieiaId().isEmpty() ? new ObjectId(request.getHygieiaId()) : new ObjectId();</span>
+<span class="nc" id="L184">        performance.setCollectorItemId(collectorItem.getId());</span>
+<span class="nc" id="L185">        performance.setExecutionId(hygieiaId);</span>
+<span class="nc" id="L186">        performance.setType(PerformanceType.ApplicationPerformance);</span>
+<span class="nc" id="L187">        performance.setUrl(request.getProjectUrl());</span>
+<span class="nc" id="L188">        performance.setVersion(request.getProjectVersion());</span>
+<span class="nc" id="L189">        performance.setTimestamp(System.currentTimeMillis());</span>
+<span class="nc" id="L190">        performance.setTargetAppName(request.getTargetAppName());</span>
+<span class="nc" id="L191">        performance.setTargetEnvName(request.getTargetEnvName());</span>
+<span class="nc" id="L192">        performance.setMetrics(new HashMap&lt;&gt;(request.getMetrics()));</span>
+<span class="nc" id="L193">        return performanceRepository.save(performance); // Save = Update (if ID present) or Insert (if ID not there)</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

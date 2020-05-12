@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RestApiExceptionHandler.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.rest</a> &gt; <span class="el_source">RestApiExceptionHandler.java</span></div><h1>RestApiExceptionHandler.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.rest;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import javax.servlet.http.HttpServletRequest;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.validation.BindException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ControllerAdvice;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.servlet.config.annotation.EnableWebMvc;
+import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
+
+import com.capitalone.dashboard.Application;
+import com.capitalone.dashboard.auth.exceptions.DeleteLastAdminException;
+import com.capitalone.dashboard.auth.exceptions.UserNotFoundException;
+import com.capitalone.dashboard.misc.HygieiaException;
+import com.capitalone.dashboard.model.ErrorResponse;
+import com.capitalone.dashboard.util.UnsafeDeleteException;
+import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
+
+/**
+ * Controller advice to handle exceptions globally.
+ */
+@EnableWebMvc
+@ControllerAdvice(annotations = RestController.class, basePackageClasses = Application.class)
+<span class="fc" id="L37">public class RestApiExceptionHandler extends ResponseEntityExceptionHandler {</span>
+<span class="fc" id="L38">    private static final Logger LOGGER = LoggerFactory.getLogger(RestApiExceptionHandler.class);</span>
+
+    @Override
+    protected ResponseEntity&lt;Object&gt; handleExceptionInternal(Exception ex, Object body, HttpHeaders headers,
+                                                             HttpStatus status, WebRequest request) {
+<span class="fc" id="L43">        headers.setContentType(MediaType.APPLICATION_JSON);</span>
+<span class="fc" id="L44">        LOGGER.error(ex.getMessage());</span>
+<span class="fc" id="L45">        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body((Object) &quot;Internal error&quot;);</span>
+    }
+
+    @Override
+    protected ResponseEntity&lt;Object&gt; handleBindException(BindException ex, HttpHeaders headers, HttpStatus status,
+                                                         WebRequest request) {
+<span class="fc" id="L51">        headers.setContentType(MediaType.APPLICATION_JSON);</span>
+<span class="fc" id="L52">        LOGGER.warn(&quot;Bad Request - bind exception: &quot;, ex);</span>
+<span class="fc" id="L53">        return new ResponseEntity&lt;Object&gt;(ErrorResponse.fromBindException(ex), headers, status);</span>
+    }
+
+    @Override
+    protected ResponseEntity&lt;Object&gt; handleMethodArgumentNotValid(MethodArgumentNotValidException ex,
+                                                                  HttpHeaders headers, HttpStatus status,
+                                                                  WebRequest request) {
+<span class="fc" id="L60">        return handleBindException(new BindException(ex.getBindingResult()), headers, status, request);</span>
+    }
+
+    /**
+     * TODO - Figure out why this method is not being called
+     */
+    @ExceptionHandler(UnrecognizedPropertyException.class)
+    public ResponseEntity&lt;?&gt; handleUnrecognizedProperty(UnrecognizedPropertyException ex, HttpServletRequest request) {
+<span class="nc" id="L68">        ErrorResponse response = new ErrorResponse();</span>
+<span class="nc" id="L69">        response.addFieldError(ex.getPropertyName(), ex.getMessage());</span>
+<span class="nc" id="L70">        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);</span>
+    }
+
+    @ExceptionHandler(UnsafeDeleteException.class)
+    protected ResponseEntity&lt;?&gt; handleUnsafeDelete(UnsafeDeleteException ex,  HttpServletRequest request) {
+<span class="nc" id="L75">        LOGGER.error(ex.getMessage());</span>
+<span class="nc" id="L76">        Map&lt;String, String&gt; errorResponse = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L77">        errorResponse.put(&quot;errorMessage&quot;, ex.getMessage());</span>
+<span class="nc" id="L78">        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);</span>
+    }
+
+    @ExceptionHandler(RuntimeException.class)
+    public ResponseEntity&lt;Object&gt; handleConflict(RuntimeException e) {
+<span class="nc" id="L83">        LOGGER.error(e.getMessage(), e);</span>
+<span class="nc" id="L84">        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body((Object) &quot;Internal error.&quot;);</span>
+    }
+
+    @ExceptionHandler(HygieiaException.class)
+    public ResponseEntity&lt;Object&gt; handleHygieiaException(HygieiaException e) {
+<span class="fc" id="L89">        LOGGER.error(e.getMessage(), e);</span>
+<span class="pc bpc" id="L90" title="2 of 4 branches missed.">        switch (e.getErrorCode()) {</span>
+            case HygieiaException.ERROR_INSERTING_DATA:
+            case HygieiaException.COLLECTOR_CREATE_ERROR:
+            case HygieiaException.COLLECTOR_ITEM_CREATE_ERROR:
+<span class="fc" id="L94">                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body((Object) (&quot;Internal error.&quot; + e.getMessage() + &quot;Error code=: &quot; + e.getErrorCode()));</span>
+            case HygieiaException.DUPLICATE_DATA:
+            case HygieiaException.JSON_FORMAT_ERROR:
+<span class="nc" id="L97">                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body((Object) (&quot;Bad request. &quot; + e.getMessage() + &quot;Error code=: &quot; + e.getErrorCode()));</span>
+            case HygieiaException.NOTHING_TO_UPDATE:
+<span class="fc" id="L99">                return ResponseEntity.status(HttpStatus.NOT_MODIFIED).body((Object) (&quot;Internal error. &quot; + e.getMessage() + &quot;Error code=: &quot; + e.getErrorCode()));</span>
+            default:
+<span class="nc" id="L101">                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body((Object) (&quot;Internal error. &quot; + e.getMessage() + &quot;Error code=: &quot; + e.getErrorCode()));</span>
+        }
+    }
+    
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity&lt;Object&gt; handleAccessDenied(AccessDeniedException e) {
+<span class="nc" id="L107">        return ResponseEntity.status(HttpStatus.FORBIDDEN).body((Object) &quot;Access Denied.&quot;);</span>
+    }
+    
+    @ExceptionHandler(DeleteLastAdminException.class)
+    public ResponseEntity&lt;Object&gt; handleDeletingLastAdmin(DeleteLastAdminException e) {
+<span class="nc" id="L112">        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());</span>
+    }
+    
+    @ExceptionHandler(UserNotFoundException.class)
+    public ResponseEntity&lt;Object&gt; handleUserNotFound(UserNotFoundException e) {
+<span class="nc" id="L117">        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

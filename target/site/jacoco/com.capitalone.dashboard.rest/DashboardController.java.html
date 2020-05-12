@@ -1,0 +1,489 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DashboardController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.rest</a> &gt; <span class="el_source">DashboardController.java</span></div><h1>DashboardController.java</h1><pre class="source lang-java linenums">
+package com.capitalone.dashboard.rest;
+
+import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
+import static org.springframework.web.bind.annotation.RequestMethod.DELETE;
+import static org.springframework.web.bind.annotation.RequestMethod.GET;
+import static org.springframework.web.bind.annotation.RequestMethod.POST;
+import static org.springframework.web.bind.annotation.RequestMethod.PUT;
+
+import java.util.List;
+
+import javax.validation.Valid;
+
+import com.capitalone.dashboard.util.PaginationHeaderUtility;
+import org.bson.types.ObjectId;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.capitalone.dashboard.auth.access.DashboardOwnerOrAdmin;
+import com.capitalone.dashboard.misc.HygieiaException;
+import com.capitalone.dashboard.model.Component;
+import com.capitalone.dashboard.model.Dashboard;
+import com.capitalone.dashboard.model.Owner;
+import com.capitalone.dashboard.model.Widget;
+import com.capitalone.dashboard.model.WidgetResponse;
+import com.capitalone.dashboard.model.ScoreDisplayType;
+import com.capitalone.dashboard.request.DashboardRequest;
+import com.capitalone.dashboard.request.DashboardRequestTitle;
+import com.capitalone.dashboard.request.WidgetRequest;
+import com.capitalone.dashboard.service.DashboardService;
+
+@RestController
+public class DashboardController {
+
+<span class="fc" id="L45">    private static final Logger LOGGER = LoggerFactory.getLogger(DashboardController.class);</span>
+    private final DashboardService dashboardService;
+    private PaginationHeaderUtility paginationHeaderUtility;
+
+
+    @Autowired
+<span class="fc" id="L51">    public DashboardController(DashboardService dashboardService, PaginationHeaderUtility paginationHeaderUtility) {</span>
+<span class="fc" id="L52">        this.dashboardService = dashboardService;</span>
+<span class="fc" id="L53">        this.paginationHeaderUtility = paginationHeaderUtility;</span>
+<span class="fc" id="L54">    }</span>
+
+    @RequestMapping(value = &quot;/dashboard&quot;, method = GET, produces = APPLICATION_JSON_VALUE)
+    public Iterable&lt;Dashboard&gt; dashboards() {
+<span class="fc" id="L58">        return dashboardService.all();</span>
+    }
+
+    @RequestMapping(value = &quot;/dashboard/template/{template}&quot;, method = GET, produces = APPLICATION_JSON_VALUE)
+    public Iterable&lt;Dashboard&gt; dashboardsTemplate(@PathVariable(&quot;template&quot;) String template) {
+<span class="nc" id="L63">        return dashboardService.allTemplate(template);</span>
+    }
+
+    @RequestMapping(value = &quot;/dashboard&quot;, method = POST,
+            consumes = APPLICATION_JSON_VALUE, produces = APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;Dashboard&gt; createDashboard(@Valid @RequestBody DashboardRequest request) {
+        try {
+<span class="fc" id="L70">            return ResponseEntity</span>
+<span class="fc" id="L71">                    .status(HttpStatus.CREATED)</span>
+<span class="fc" id="L72">                    .body(dashboardService.create(request.toDashboard()));</span>
+<span class="nc" id="L73">        } catch (HygieiaException he) {</span>
+<span class="nc" id="L74">            Dashboard dashboard = request.toDashboard();</span>
+<span class="nc" id="L75">            dashboard.setErrorMessage(he.getMessage());</span>
+<span class="nc" id="L76">            dashboard.setErrorCode(he.getErrorCode());</span>
+<span class="nc" id="L77">            return ResponseEntity</span>
+<span class="nc" id="L78">                    .status(HttpStatus.BAD_REQUEST)</span>
+<span class="nc" id="L79">                    .body(dashboard);</span>
+        }
+    }
+
+
+    @RequestMapping(value = &quot;/dashboard/{id}&quot;, method = GET,
+            produces = APPLICATION_JSON_VALUE)
+    public Dashboard getDashboard(@PathVariable ObjectId id) {
+<span class="fc" id="L87">        return dashboardService.get(id);</span>
+    }
+
+    @DashboardOwnerOrAdmin
+    @RequestMapping(value = &quot;/dashboard/{id}&quot;, method = PUT, consumes = APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;String&gt; updateDashboard(@PathVariable ObjectId id,
+                                                  @RequestBody DashboardRequest request) {
+        try {
+<span class="fc" id="L95">            dashboardService.update(request.copyTo(dashboardService.get(id)));</span>
+<span class="fc" id="L96">            return ResponseEntity.ok(&quot;Updated&quot;);</span>
+<span class="nc" id="L97">        } catch (HygieiaException he) {</span>
+<span class="nc" id="L98">            return ResponseEntity</span>
+<span class="nc" id="L99">                    .status(HttpStatus.BAD_REQUEST)</span>
+<span class="nc" id="L100">                    .body(null);</span>
+        }
+    }
+
+    @DashboardOwnerOrAdmin
+    @RequestMapping(path = &quot;/dashboard/{id}/owners&quot;, method = PUT, consumes = APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;Iterable&lt;Owner&gt;&gt; updateOwners(@PathVariable ObjectId id, @RequestBody Iterable&lt;Owner&gt; owners) {
+<span class="fc" id="L107">    	return new ResponseEntity&lt;Iterable&lt;Owner&gt;&gt;(dashboardService.updateOwners(id, owners), HttpStatus.ACCEPTED);</span>
+    }
+
+    @DashboardOwnerOrAdmin
+    @RequestMapping(value = &quot;/dashboard/rename/{id}&quot;, method = PUT, consumes = APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;String&gt; renameDashboard(@PathVariable ObjectId id,
+    		@Valid @RequestBody DashboardRequestTitle request) {
+
+
+<span class="fc" id="L116">        Dashboard dashboard = getDashboard(id);</span>
+<span class="fc" id="L117">        String existingTitle = dashboard.getTitle();</span>
+<span class="fc" id="L118">        String newTitle = request.getTitle();</span>
+
+        //no change to title is ok
+<span class="fc bfc" id="L121" title="All 2 branches covered.">        if (existingTitle.equalsIgnoreCase(newTitle)) {</span>
+<span class="fc" id="L122">            return ResponseEntity.ok(&quot;Unchanged&quot;);</span>
+        }
+
+
+<span class="fc" id="L126">        boolean titleExist = false;</span>
+<span class="fc" id="L127">        List&lt;Dashboard&gt; existingDashboardList = dashboardService.getByTitle(newTitle);</span>
+<span class="pc bpc" id="L128" title="1 of 4 branches missed.">        if( existingDashboardList != null &amp;&amp; !existingDashboardList.isEmpty()){</span>
+<span class="fc" id="L129">            titleExist=true;</span>
+        }
+
+<span class="fc" id="L132">        LOGGER.info(&quot;Existing Title:&quot; + titleExist);</span>
+        //check if any other dashboard has the same title
+
+<span class="fc bfc" id="L135" title="All 2 branches covered.">        if (!titleExist) {</span>
+            try {
+<span class="fc" id="L137">                dashboard.setTitle(request.getTitle());</span>
+<span class="fc" id="L138">                dashboardService.update(dashboard);</span>
+<span class="fc" id="L139">                return ResponseEntity.ok(&quot;Renamed&quot;);</span>
+<span class="nc" id="L140">            } catch (HygieiaException he) {</span>
+<span class="nc" id="L141">                return ResponseEntity</span>
+<span class="nc" id="L142">                        .status(HttpStatus.BAD_REQUEST)</span>
+<span class="nc" id="L143">                        .body(null);</span>
+            }
+        } else {
+<span class="fc" id="L146">            return ResponseEntity</span>
+<span class="fc" id="L147">                    .status(HttpStatus.BAD_REQUEST)</span>
+<span class="fc" id="L148">                    .body(null);</span>
+        }
+    }
+
+    @DashboardOwnerOrAdmin
+    @RequestMapping(value = &quot;/dashboard/{id}&quot;, method = DELETE)
+    public ResponseEntity&lt;Void&gt; deleteDashboard(@PathVariable ObjectId id) {
+<span class="fc" id="L155">        dashboardService.delete(id);</span>
+<span class="fc" id="L156">        return ResponseEntity.noContent().build();</span>
+    }
+
+    @DashboardOwnerOrAdmin
+    @RequestMapping(value = &quot;/dashboard/{id}/widget&quot;, method = POST,
+            consumes = APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;WidgetResponse&gt; addWidget(@PathVariable ObjectId id, @RequestBody WidgetRequest request) {
+
+<span class="fc" id="L164">        Dashboard dashboard = dashboardService.get(id);</span>
+
+<span class="fc" id="L166">        Component component = dashboardService.associateCollectorToComponent(</span>
+<span class="fc" id="L167">                request.getComponentId(), request.getCollectorItemIds(), true);</span>
+
+<span class="fc" id="L169">        Widget widget = dashboardService.addWidget(dashboard, request.widget());</span>
+
+<span class="fc" id="L171">        return ResponseEntity.status(HttpStatus.CREATED).body(new WidgetResponse(component, widget));</span>
+    }
+
+    @DashboardOwnerOrAdmin
+    @RequestMapping(value = &quot;/v2/dashboard/{id}/widget&quot;, method = POST,
+            consumes = APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;WidgetResponse&gt; addWidgetV2(@PathVariable ObjectId id, @RequestBody WidgetRequest request) {
+
+<span class="nc" id="L179">        Dashboard dashboard = dashboardService.get(id);</span>
+
+<span class="nc" id="L181">        Component component = dashboardService.associateCollectorToComponent(</span>
+<span class="nc" id="L182">                request.getComponentId(), request.getCollectorItemIds(), false);</span>
+
+<span class="nc" id="L184">        Widget widget = dashboardService.addWidget(dashboard, request.widget());</span>
+
+<span class="nc" id="L186">        return ResponseEntity.status(HttpStatus.CREATED).body(new WidgetResponse(component, widget));</span>
+    }
+
+    @DashboardOwnerOrAdmin
+    @RequestMapping(value = &quot;/dashboard/{id}/widget/{widgetId}&quot;, method = PUT,
+            consumes = APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;WidgetResponse&gt; updateWidget(@PathVariable ObjectId id,
+                                                       @PathVariable ObjectId widgetId,
+                                                       @RequestBody WidgetRequest request) {
+<span class="fc" id="L195">        Component component = dashboardService.associateCollectorToComponent(</span>
+<span class="fc" id="L196">                request.getComponentId(), request.getCollectorItemIds(), true);</span>
+
+<span class="fc" id="L198">        Dashboard dashboard = dashboardService.get(id);</span>
+<span class="fc" id="L199">        Widget widget = request.updateWidget(dashboardService.getWidget(dashboard, widgetId));</span>
+<span class="fc" id="L200">        widget = dashboardService.updateWidget(dashboard, widget);</span>
+
+<span class="fc" id="L202">        return ResponseEntity.ok().body(new WidgetResponse(component, widget));</span>
+    }
+
+    @DashboardOwnerOrAdmin
+    @RequestMapping(value = &quot;/v2/dashboard/{id}/widget/{widgetId}&quot;, method = PUT,
+            consumes = APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;WidgetResponse&gt; updateWidgetV2(@PathVariable ObjectId id,
+                                                       @PathVariable ObjectId widgetId,
+                                                       @RequestBody WidgetRequest request) {
+<span class="nc" id="L211">        Component component = dashboardService.associateCollectorToComponent(</span>
+<span class="nc" id="L212">                request.getComponentId(), request.getCollectorItemIds(), false);</span>
+
+<span class="nc" id="L214">        Dashboard dashboard = dashboardService.get(id);</span>
+<span class="nc" id="L215">        Widget widget = request.updateWidget(dashboardService.getWidget(dashboard, widgetId));</span>
+<span class="nc" id="L216">        widget = dashboardService.updateWidget(dashboard, widget);</span>
+
+<span class="nc" id="L218">        return ResponseEntity.ok().body(new WidgetResponse(component, widget));</span>
+    }
+
+    @RequestMapping(value = &quot;/dashboard/mydashboard&quot;, method = GET,
+            produces = APPLICATION_JSON_VALUE)
+    public List&lt;Dashboard&gt; getOwnedDashboards() {
+<span class="nc" id="L224">    	List&lt;Dashboard&gt; myDashboard = dashboardService.getOwnedDashboards();</span>
+<span class="nc" id="L225">        return myDashboard;</span>
+
+    }
+
+    @RequestMapping(value = &quot;/dashboard/{id}/owners&quot;, method = GET,
+            produces = APPLICATION_JSON_VALUE)
+    public Iterable&lt;Owner&gt; getOwners(@PathVariable ObjectId id) {
+<span class="nc" id="L232">        return dashboardService.getOwners(id);</span>
+    }
+
+    @Deprecated
+    @RequestMapping(value = &quot;/dashboard/myowner/{id}&quot;, method = GET,
+            produces = APPLICATION_JSON_VALUE)
+    public String getDashboardOwner(@PathVariable ObjectId id) {
+<span class="nc" id="L239">    	return &quot;Authorized&quot;;</span>
+    }
+
+    @RequestMapping(value = &quot;/dashboard/component/{componentId}&quot;, method = GET,
+            produces = APPLICATION_JSON_VALUE)
+    public Component getComponentForDashboard(@PathVariable ObjectId componentId) {
+<span class="nc" id="L245">        Component component = new Component();</span>
+<span class="nc bnc" id="L246" title="All 2 branches missed.">        if (null != componentId) {</span>
+<span class="nc" id="L247">            component = dashboardService.getComponent(componentId);</span>
+        }
+<span class="nc" id="L249">        return component;</span>
+    }
+    @RequestMapping(value = &quot;/dashboard/configItemApp/{configItem}&quot;, method = GET,
+            produces = APPLICATION_JSON_VALUE)
+    public ResponseEntity getDashboardByApp(@PathVariable String configItem) {
+        try{
+<span class="nc" id="L255">            return ResponseEntity.status(HttpStatus.OK).body(dashboardService.getByBusinessService(configItem));</span>
+<span class="nc" id="L256">        } catch (HygieiaException he) {</span>
+<span class="nc" id="L257">            return ResponseEntity</span>
+<span class="nc" id="L258">                    .status(HttpStatus.BAD_REQUEST)</span>
+<span class="nc" id="L259">                    .body(he.getMessage());</span>
+        }
+    }
+    @RequestMapping(value = &quot;/dashboard/configItemComponent/{configItem}&quot;, method = GET,
+            produces = APPLICATION_JSON_VALUE)
+    public ResponseEntity getDashboardByComp(@PathVariable String configItem) {
+        try{
+<span class="nc" id="L266">            return ResponseEntity.status(HttpStatus.OK).body(dashboardService.getByBusinessApplication(configItem));</span>
+<span class="nc" id="L267">        } catch (HygieiaException he) {</span>
+<span class="nc" id="L268">            return ResponseEntity</span>
+<span class="nc" id="L269">                    .status(HttpStatus.BAD_REQUEST)</span>
+<span class="nc" id="L270">                    .body(he.getMessage());</span>
+        }
+    }
+    @RequestMapping(value = &quot;/dashboard/configItemComponentAndApp/{configItemComp}/{configItemApp}&quot;, method = GET,
+            produces = APPLICATION_JSON_VALUE)
+    public ResponseEntity getDashboardByCompAndApp(@PathVariable String configItemComp,@PathVariable String configItemApp) {
+        try{
+<span class="nc" id="L277">            return ResponseEntity.status(HttpStatus.OK).body(dashboardService.getByServiceAndApplication(configItemComp,configItemApp));</span>
+<span class="nc" id="L278">        } catch (HygieiaException he) {</span>
+<span class="nc" id="L279">            return ResponseEntity</span>
+<span class="nc" id="L280">                    .status(HttpStatus.BAD_REQUEST)</span>
+<span class="nc" id="L281">                    .body(he.getMessage());</span>
+        }
+    }
+
+    @DashboardOwnerOrAdmin
+    @RequestMapping(value = &quot;/dashboard/updateBusItems/{id}&quot;, method = PUT, consumes = APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;String&gt; updateDashboardBusinessItems(@PathVariable ObjectId id, @RequestBody Dashboard request) {
+        try {
+<span class="nc" id="L289">            Dashboard dashboard = dashboardService.updateDashboardBusinessItems(id, request);</span>
+<span class="nc bnc" id="L290" title="All 2 branches missed.">            if(dashboard != null){</span>
+<span class="nc" id="L291">                return ResponseEntity.ok(&quot;Updated&quot;);</span>
+            }else{
+<span class="nc" id="L293">                return ResponseEntity.ok(&quot;Unchanged&quot;);</span>
+            }
+
+<span class="nc" id="L296">        } catch (HygieiaException he) {</span>
+<span class="nc" id="L297">            return ResponseEntity</span>
+<span class="nc" id="L298">                    .status(HttpStatus.BAD_REQUEST)</span>
+<span class="nc" id="L299">                    .body(he.getMessage());</span>
+        }
+
+    }
+
+    @DashboardOwnerOrAdmin
+    @RequestMapping(value = &quot;/dashboard/updateDashboardWidgets/{id}&quot;, method = PUT, consumes = APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;String&gt; updateDashboardWidgets(@PathVariable ObjectId id, @RequestBody Dashboard request) {
+        try {
+<span class="nc" id="L308">            Dashboard dashboard = dashboardService.updateDashboardWidgets(id, request);</span>
+<span class="nc bnc" id="L309" title="All 2 branches missed.">            if(dashboard != null){</span>
+<span class="nc" id="L310">                return ResponseEntity.ok(&quot;Updated&quot;);</span>
+            }else{
+<span class="nc" id="L312">                return ResponseEntity.ok(&quot;Unchanged&quot;);</span>
+            }
+
+<span class="nc" id="L315">        } catch (HygieiaException he) {</span>
+<span class="nc" id="L316">            return ResponseEntity</span>
+<span class="nc" id="L317">                    .status(HttpStatus.BAD_REQUEST)</span>
+<span class="nc" id="L318">                    .body(he.getMessage());</span>
+        }
+
+    }
+
+    @DashboardOwnerOrAdmin
+    @RequestMapping(value = &quot;/dashboard/updateScoreSettings/{id}&quot;, method = PUT)
+    public ResponseEntity&lt;String&gt; updateScoreSettings(
+      @PathVariable ObjectId id,
+      @RequestParam(value = &quot;scoreEnabled&quot;, required = true, defaultValue = &quot;false&quot;) boolean scoreEnabled,
+      @RequestParam(value = &quot;scoreDisplay&quot;, required = false, defaultValue = &quot;HEADER&quot;) String scoreDisplay) {
+<span class="fc" id="L329">        Dashboard dashboard = dashboardService.updateScoreSettings(</span>
+<span class="fc" id="L330">          id, scoreEnabled, ScoreDisplayType.fromString(scoreDisplay)</span>
+        );
+<span class="pc bpc" id="L332" title="1 of 2 branches missed.">        if(dashboard != null){</span>
+<span class="fc" id="L333">            return ResponseEntity.ok(&quot;Updated&quot;);</span>
+        }else{
+<span class="nc" id="L335">            return ResponseEntity.ok(&quot;Unchanged&quot;);</span>
+        }
+    }
+
+
+    @DashboardOwnerOrAdmin
+    @RequestMapping(value = &quot;/dashboard/{id}/deleteWidget/{widgetId}&quot;, method = PUT,
+            consumes = APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;WidgetResponse&gt; deleteWidget(@PathVariable ObjectId id,
+                                                       @PathVariable ObjectId widgetId,
+                                                       @RequestBody WidgetRequest request) {
+<span class="fc" id="L346">        Component component = dashboardService.associateCollectorToComponent(</span>
+<span class="fc" id="L347">                request.getComponentId(), request.getCollectorItemIds(), true);</span>
+
+<span class="fc" id="L349">        Dashboard dashboard = dashboardService.get(id);</span>
+<span class="fc" id="L350">        Widget widget =dashboardService.getWidget(dashboard, widgetId);</span>
+<span class="fc" id="L351">        dashboardService.deleteWidget(dashboard, widget,request.getComponentId());</span>
+
+<span class="fc" id="L353">        return ResponseEntity.ok().body(new WidgetResponse(component, null));</span>
+    }
+
+    @DashboardOwnerOrAdmin
+    @RequestMapping(value = &quot;/v2/dashboard/{id}/deleteWidget/{widgetId}&quot;, method = PUT,
+            consumes = APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;WidgetResponse&gt; deleteWidgetV2(@PathVariable ObjectId id,
+                                                       @PathVariable ObjectId widgetId,
+                                                       @RequestBody WidgetRequest request) {
+<span class="nc" id="L362">        Component component = dashboardService.associateCollectorToComponent(</span>
+<span class="nc" id="L363">                request.getComponentId(), request.getCollectorItemIds(), false);</span>
+
+<span class="nc" id="L365">        Dashboard dashboard = dashboardService.get(id);</span>
+<span class="nc" id="L366">        Widget widget =dashboardService.getWidget(dashboard, widgetId);</span>
+<span class="nc" id="L367">        dashboardService.deleteWidget(dashboard, widget,request.getComponentId());</span>
+
+<span class="nc" id="L369">        return ResponseEntity.ok().body(new WidgetResponse(component, null));</span>
+    }
+
+    /**
+     * Get count of all dashboards
+     *
+     * @return Integer
+     */
+    @RequestMapping(value = &quot;/dashboard/count/{type}&quot;, method = GET, produces = APPLICATION_JSON_VALUE)
+    public long dashboardsCount(@PathVariable String type) {
+<span class="nc" id="L379">        return dashboardService.count(type);</span>
+    }
+
+    /**
+     * Get count of all filtered dashboards
+     *
+     * @return Integer
+     */
+        @RequestMapping(value = &quot;/dashboard/filter/count/{title}/{type}&quot;, method = GET, produces = APPLICATION_JSON_VALUE)
+    public long dashboardsFilterCount(@PathVariable String title, @PathVariable String type) {
+<span class="nc" id="L389">        return dashboardService.getAllDashboardsByTitleCount(title, type);</span>
+    }
+
+    /**
+     * Get dashboards filtered by title (pageable)
+     *
+     * @return List of Dashboards
+     */
+    @RequestMapping(value = &quot;/dashboard/page/filter&quot;, method = GET, produces = APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;List&lt;Dashboard&gt;&gt; dashboardByTitlePage(@RequestParam(value = &quot;search&quot;, required = false, defaultValue = &quot;&quot;) String search,
+                                                                @RequestParam(value = &quot;type&quot;, required = false, defaultValue = &quot;&quot;) String type,
+                                                                Pageable pageable) throws HygieiaException {
+<span class="nc" id="L401">        Page&lt;Dashboard&gt; pageDashboardItems = dashboardService.getDashboardByTitleWithFilter(search, type, pageable);</span>
+<span class="nc" id="L402">        return ResponseEntity</span>
+<span class="nc" id="L403">                .ok()</span>
+<span class="nc" id="L404">                .headers(paginationHeaderUtility.buildPaginationHeaders(pageDashboardItems))</span>
+<span class="nc" id="L405">                .body(pageDashboardItems.getContent());</span>
+    }
+
+    /**
+     * Get page size
+     *
+     * @return int
+     */
+    @RequestMapping(value = &quot;/dashboard/pagesize&quot;, method = GET, produces = APPLICATION_JSON_VALUE)
+    public int getPageSize() {
+<span class="nc" id="L415">        return dashboardService.getPageSize();</span>
+    }
+
+
+    /**
+     * Get list of dashboards by page (default = 10)
+     *
+     * @return List of dashboards
+     */
+    @RequestMapping(value = &quot;/dashboard/page&quot;, method = GET, produces = APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;List&lt;Dashboard&gt;&gt; dashboardByPage(@RequestParam(value = &quot;search&quot;, required = false, defaultValue = &quot;&quot;) String search,
+                                                           @RequestParam(value = &quot;type&quot;, required = false, defaultValue = &quot;&quot;) String type,
+                                                           Pageable pageable) {
+<span class="nc" id="L428">        Page&lt;Dashboard&gt; pageDashboardItems = dashboardService.findDashboardsByPage(type, pageable);</span>
+<span class="nc" id="L429">        return ResponseEntity</span>
+<span class="nc" id="L430">                .ok()</span>
+<span class="nc" id="L431">                .headers(paginationHeaderUtility.buildPaginationHeaders(pageDashboardItems))</span>
+<span class="nc" id="L432">                .body(pageDashboardItems.getContent());</span>
+    }
+
+    // MyDashboard pagination
+
+    /**
+     * Get list of my dashboards by page (default = 10)
+     *
+     * @return List of dashboards
+     */
+    @RequestMapping(value = &quot;/dashboard/mydashboard/page&quot;, method = GET, produces = APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;List&lt;Dashboard&gt;&gt; myDashboardByPage(@RequestParam(value = &quot;username&quot;, required = false, defaultValue = &quot;&quot;) String username,
+                                                             @RequestParam(value = &quot;type&quot;, required = false, defaultValue = &quot;&quot;) String type,
+                                                             Pageable pageable) {
+<span class="nc" id="L446">        Page&lt;Dashboard&gt; pageDashboardItems = dashboardService.findMyDashboardsByPage(type, pageable);</span>
+<span class="nc" id="L447">        return ResponseEntity</span>
+<span class="nc" id="L448">                .ok()</span>
+<span class="nc" id="L449">                .headers(paginationHeaderUtility.buildPaginationHeaders(pageDashboardItems))</span>
+<span class="nc" id="L450">                .body(pageDashboardItems.getContent());</span>
+    }
+
+    /**
+     * Get count of my dashboards
+     *
+     * @return Integer
+     */
+    @RequestMapping(value = &quot;/dashboard/mydashboard/count/{type}&quot;, method = GET, produces = APPLICATION_JSON_VALUE)
+    public long myDashboardCount(@PathVariable String type) {
+<span class="nc" id="L460">        return dashboardService.myDashboardsCount(type);</span>
+    }
+
+    /**
+     * Get count of all filtered dashboards
+     *
+     * @return Integer
+     */
+    @RequestMapping(value = &quot;/dashboard/mydashboard/filter/count/{title}/{type}&quot;, method = GET, produces = APPLICATION_JSON_VALUE)
+    public long myDashboardsFilterCount(@PathVariable String title, @PathVariable String type) {
+<span class="nc" id="L470">        return dashboardService.getMyDashboardsByTitleCount(title, type);</span>
+    }
+
+    /**
+     * Get my dashboards filtered by title (pageable)
+     *
+     * @return List of Dashboards
+     */
+    @RequestMapping(value = &quot;/dashboard/mydashboard/page/filter&quot;, method = GET, produces = APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;List&lt;Dashboard&gt;&gt; myDashboardByTitlePage(@RequestParam(value = &quot;search&quot;, required = false, defaultValue = &quot;&quot;) String search,
+                                                                  @RequestParam(value = &quot;type&quot;, required = false, defaultValue = &quot;&quot;) String type,
+                                                                  Pageable pageable) throws HygieiaException {
+<span class="nc" id="L482">        Page&lt;Dashboard&gt; pageDashboardItems = dashboardService.getMyDashboardByTitleWithFilter(search, type, pageable);</span>
+<span class="nc" id="L483">        return ResponseEntity</span>
+<span class="nc" id="L484">                .ok()</span>
+<span class="nc" id="L485">                .headers(paginationHeaderUtility.buildPaginationHeaders(pageDashboardItems))</span>
+<span class="nc" id="L486">                .body(pageDashboardItems.getContent());</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

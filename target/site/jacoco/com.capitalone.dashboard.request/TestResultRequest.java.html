@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TestResultRequest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.request</a> &gt; <span class="el_source">TestResultRequest.java</span></div><h1>TestResultRequest.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.request;
+
+import com.capitalone.dashboard.model.TestSuiteType;
+import org.bson.types.ObjectId;
+import org.hibernate.validator.constraints.Range;
+
+import javax.validation.constraints.NotNull;
+import java.util.ArrayList;
+import java.util.List;
+
+<span class="fc" id="L11">public class TestResultRequest {</span>
+    @NotNull
+    private ObjectId componentId;
+    private Integer max;
+    private Long startDateBegins;
+    private Long startDateEnds;
+    private Long endDateBegins;
+    private Long endDateEnds;
+    private Long durationGreaterThan;
+    private Long durationLessThan;
+    @Range(min = 0, max = 4)
+    private Integer depth;
+<span class="fc" id="L23">    private List&lt;TestSuiteType&gt; types = new ArrayList&lt;&gt;();</span>
+
+    public ObjectId getComponentId() {
+<span class="fc" id="L26">        return componentId;</span>
+    }
+
+    public void setComponentId(ObjectId componentId) {
+<span class="fc" id="L30">        this.componentId = componentId;</span>
+<span class="fc" id="L31">    }</span>
+
+    public Integer getMax() {
+<span class="nc" id="L34">        return max;</span>
+    }
+
+    public void setMax(Integer max) {
+<span class="nc" id="L38">        this.max = max;</span>
+<span class="nc" id="L39">    }</span>
+
+    public Long getStartDateBegins() {
+<span class="nc" id="L42">        return startDateBegins;</span>
+    }
+
+    public void setStartDateBegins(Long startDateBegins) {
+<span class="nc" id="L46">        this.startDateBegins = startDateBegins;</span>
+<span class="nc" id="L47">    }</span>
+
+    public Long getStartDateEnds() {
+<span class="nc" id="L50">        return startDateEnds;</span>
+    }
+
+    public void setStartDateEnds(Long startDateEnds) {
+<span class="nc" id="L54">        this.startDateEnds = startDateEnds;</span>
+<span class="nc" id="L55">    }</span>
+
+    public Long getEndDateBegins() {
+<span class="nc" id="L58">        return endDateBegins;</span>
+    }
+
+    public void setEndDateBegins(Long endDateBegins) {
+<span class="nc" id="L62">        this.endDateBegins = endDateBegins;</span>
+<span class="nc" id="L63">    }</span>
+
+    public Long getEndDateEnds() {
+<span class="nc" id="L66">        return endDateEnds;</span>
+    }
+
+    public void setEndDateEnds(Long endDateEnds) {
+<span class="nc" id="L70">        this.endDateEnds = endDateEnds;</span>
+<span class="nc" id="L71">    }</span>
+
+    public Long getDurationGreaterThan() {
+<span class="nc" id="L74">        return durationGreaterThan;</span>
+    }
+
+    public void setDurationGreaterThan(Long durationGreaterThan) {
+<span class="nc" id="L78">        this.durationGreaterThan = durationGreaterThan;</span>
+<span class="nc" id="L79">    }</span>
+
+    public Long getDurationLessThan() {
+<span class="nc" id="L82">        return durationLessThan;</span>
+    }
+
+    public void setDurationLessThan(Long durationLessThan) {
+<span class="nc" id="L86">        this.durationLessThan = durationLessThan;</span>
+<span class="nc" id="L87">    }</span>
+
+    public Integer getDepth() {
+<span class="nc" id="L90">        return depth;</span>
+    }
+
+    public void setDepth(Integer depth) {
+<span class="nc" id="L94">        this.depth = depth;</span>
+<span class="nc" id="L95">    }</span>
+
+    public List&lt;TestSuiteType&gt; getTypes() {
+<span class="nc" id="L98">        return types;</span>
+    }
+
+    public void setTypes(List&lt;TestSuiteType&gt; types) {
+<span class="nc" id="L102">        this.types = types;</span>
+<span class="nc" id="L103">    }</span>
+
+    public boolean validStartDateRange() {
+<span class="nc bnc" id="L106" title="All 4 branches missed.">        return startDateBegins != null || startDateEnds != null;</span>
+    }
+
+    public boolean validEndDateRange() {
+<span class="nc bnc" id="L110" title="All 4 branches missed.">        return endDateBegins != null || endDateEnds != null;</span>
+    }
+
+    public boolean validDurationRange() {
+<span class="nc bnc" id="L114" title="All 4 branches missed.">        return durationGreaterThan != null || durationLessThan != null;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

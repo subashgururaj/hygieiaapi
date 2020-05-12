@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GitHubIssueV3.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.webhook.github</a> &gt; <span class="el_source">GitHubIssueV3.java</span></div><h1>GitHubIssueV3.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.webhook.github;
+
+import com.capitalone.dashboard.repository.CollectorItemRepository;
+import com.capitalone.dashboard.settings.ApiSettings;
+import com.capitalone.dashboard.client.RestClient;
+import com.capitalone.dashboard.model.webhook.github.GitHubParsed;
+import com.capitalone.dashboard.misc.HygieiaException;
+import com.capitalone.dashboard.model.CollectorItem;
+import com.capitalone.dashboard.model.GitRequest;
+import com.capitalone.dashboard.repository.GitRequestRepository;
+import com.capitalone.dashboard.service.CollectorService;
+import org.joda.time.DateTime;
+import org.json.simple.JSONObject;
+
+import java.net.MalformedURLException;
+import java.util.Map;
+
+public class GitHubIssueV3 extends GitHubV3 {
+    private final  GitRequestRepository gitRequestRepository;
+    private final CollectorItemRepository collectorItemRepository;
+
+    public GitHubIssueV3(CollectorService collectorService,
+                         RestClient restClient,
+                         GitRequestRepository gitRequestRepository,
+                         CollectorItemRepository collectorItemRepository,
+                         ApiSettings apiSettings) {
+<span class="fc" id="L27">        super(collectorService, restClient, apiSettings);</span>
+<span class="fc" id="L28">        this.gitRequestRepository =  gitRequestRepository;</span>
+<span class="fc" id="L29">        this.collectorItemRepository = collectorItemRepository;</span>
+<span class="fc" id="L30">    }</span>
+
+    @Override
+<span class="nc" id="L33">    public CollectorItemRepository getCollectorItemRepository() { return this.collectorItemRepository; }</span>
+
+    @Override
+    public String process(JSONObject jsonObject) throws MalformedURLException, HygieiaException {
+<span class="nc" id="L37">        String result = &quot;Issues Processed Successfully&quot;;</span>
+
+<span class="nc" id="L39">        Object issueObject = jsonObject.get(&quot;issue&quot;);</span>
+
+<span class="nc bnc" id="L41" title="All 2 branches missed.">        if (!(issueObject instanceof Map)) {</span>
+<span class="nc" id="L42">            return &quot;Issue Data Not Found&quot;;</span>
+        }
+
+<span class="nc" id="L45">        Map issueMap = (Map) issueObject;</span>
+
+<span class="nc" id="L47">        Object repoMap = jsonObject.get(&quot;repository&quot;);</span>
+<span class="nc bnc" id="L48" title="All 2 branches missed.">        if (repoMap == null) { return &quot;Repository Data Not Available&quot;; }</span>
+
+<span class="nc" id="L50">        String repoUrl = restClient.getString(repoMap, &quot;html_url&quot;);</span>
+<span class="nc" id="L51">        GitHubParsed gitHubParsed = new GitHubParsed(repoUrl);</span>
+
+        // Picking the &quot;default_branch&quot; here, didn't find specific branch information on the github webhook issue payload.
+        // Also, an issue is seen at the repo-level across all the branches on github, it is not attached a specific branch.
+<span class="nc" id="L55">        String branch = restClient.getString(repoMap, &quot;default_branch&quot;);</span>
+
+<span class="nc" id="L57">        GitRequest issue = getIssue(issueMap, gitHubParsed, branch);</span>
+
+<span class="nc" id="L59">        gitRequestRepository.save(issue);</span>
+
+<span class="nc" id="L61">        return result;</span>
+    }
+
+    protected GitRequest getIssue(Map issueMap, GitHubParsed gitHubParsed, String branch) throws HygieiaException, MalformedURLException {
+<span class="pc bpc" id="L65" title="1 of 2 branches missed.">        if (issueMap.isEmpty()) { return null; }</span>
+
+<span class="fc" id="L67">        GitRequest issue = new GitRequest();</span>
+<span class="fc" id="L68">        issue.setRequestType(&quot;issue&quot;);</span>
+<span class="fc" id="L69">        issue.setScmUrl(gitHubParsed.getUrl());</span>
+<span class="fc" id="L70">        issue.setScmBranch(branch);</span>
+<span class="fc" id="L71">        issue.setOrgName(gitHubParsed.getOrgName());</span>
+<span class="fc" id="L72">        issue.setRepoName(gitHubParsed.getRepoName());</span>
+<span class="fc" id="L73">        issue.setTimestamp(System.currentTimeMillis());</span>
+
+<span class="fc" id="L75">        String number = restClient.getString(issueMap, &quot;number&quot;);</span>
+<span class="fc" id="L76">        issue.setScmRevisionNumber(number);</span>
+<span class="fc" id="L77">        issue.setNumber(number);</span>
+
+<span class="fc" id="L79">        String message = restClient.getString(issueMap, &quot;title&quot;);</span>
+<span class="fc" id="L80">        issue.setScmCommitLog(message);</span>
+
+<span class="fc" id="L82">        Object userObject = issueMap.get(&quot;user&quot;);</span>
+<span class="fc" id="L83">        String name = restClient.getString(userObject, &quot;login&quot;);</span>
+<span class="fc" id="L84">        issue.setUserId(name);</span>
+
+<span class="fc" id="L86">        String created = restClient.getString(issueMap, &quot;created_at&quot;);</span>
+<span class="fc" id="L87">        long createdTimestamp = new DateTime(created).getMillis();</span>
+<span class="fc" id="L88">        issue.setCreatedAt(createdTimestamp);</span>
+
+<span class="fc" id="L90">        String updated = restClient.getString(issueMap, &quot;updated_at&quot;);</span>
+<span class="fc" id="L91">        long updatedTimestamp = new DateTime(updated).getMillis();</span>
+<span class="fc" id="L92">        issue.setUpdatedAt(updatedTimestamp);</span>
+
+<span class="fc" id="L94">        issue.setClosedAt(0);</span>
+<span class="fc" id="L95">        issue.setResolutiontime(0);</span>
+<span class="fc" id="L96">        issue.setMergedAt(0);</span>
+<span class="fc" id="L97">        issue.setState(&quot;open&quot;);</span>
+<span class="fc" id="L98">        String state = restClient.getString(issueMap, &quot;state&quot;);</span>
+<span class="pc bpc" id="L99" title="1 of 2 branches missed.">        if (&quot;CLOSED&quot;.equalsIgnoreCase(state)) {</span>
+<span class="fc" id="L100">            String closed = restClient.getString(issueMap, &quot;closed_at&quot;);</span>
+<span class="fc" id="L101">            long closedTimestamp = new DateTime(closed).getMillis();</span>
+<span class="fc" id="L102">            issue.setScmCommitTimestamp(closedTimestamp);</span>
+<span class="fc" id="L103">            issue.setClosedAt(closedTimestamp);</span>
+<span class="fc" id="L104">            issue.setMergedAt(closedTimestamp);</span>
+<span class="fc" id="L105">            issue.setResolutiontime((closedTimestamp - createdTimestamp));</span>
+<span class="fc" id="L106">            issue.setState(&quot;closed&quot;);</span>
+        }
+
+<span class="fc" id="L109">        setCollectorItemId(issue);</span>
+
+<span class="fc" id="L111">        return issue;</span>
+    }
+
+    protected void setCollectorItemId(GitRequest issue) throws HygieiaException, MalformedURLException {
+<span class="fc" id="L115">        GitRequest existingIssue</span>
+<span class="fc" id="L116">                = gitRequestRepository.findByScmUrlIgnoreCaseAndScmBranchIgnoreCaseAndNumberAndRequestTypeIgnoreCase(issue.getScmUrl(), issue.getScmBranch(), issue.getNumber(), &quot;issue&quot;);</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">        if (existingIssue != null) {</span>
+<span class="fc" id="L118">            issue.setId(existingIssue.getId());</span>
+<span class="fc" id="L119">            issue.setCollectorItemId(existingIssue.getCollectorItemId());</span>
+<span class="fc" id="L120">            CollectorItem collectorItem = collectorService.getCollectorItem(existingIssue.getCollectorItemId());</span>
+<span class="fc" id="L121">            collectorItem.setEnabled(true);</span>
+<span class="fc" id="L122">            collectorItem.setPushed(true);</span>
+<span class="fc" id="L123">            collectorItemRepository.save(collectorItem);</span>
+<span class="fc" id="L124">        } else {</span>
+<span class="fc" id="L125">            GitHubParsed gitHubParsed = new GitHubParsed(issue.getScmUrl());</span>
+<span class="fc" id="L126">            CollectorItem collectorItem = getCollectorItem(gitHubParsed.getUrl(), issue.getScmBranch());</span>
+<span class="fc" id="L127">            issue.setCollectorItemId(collectorItem.getId());</span>
+        }
+<span class="fc" id="L129">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

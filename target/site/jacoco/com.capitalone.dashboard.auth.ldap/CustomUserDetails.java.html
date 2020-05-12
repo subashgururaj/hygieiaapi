@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CustomUserDetails.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.auth.ldap</a> &gt; <span class="el_source">CustomUserDetails.java</span></div><h1>CustomUserDetails.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.auth.ldap;
+
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.ldap.userdetails.LdapUserDetails;
+
+import java.util.Collection;
+
+<span class="nc" id="L8">public class CustomUserDetails implements LdapUserDetails {</span>
+    private String displayName;
+    private String dn;
+    private String password;
+    private String username;
+    private Collection&lt;GrantedAuthority&gt; authorities;
+    private boolean accountNonExpired;
+    private boolean accountNonLocked;
+    private boolean credentialsNonExpired;
+    private boolean enabled;
+    private int timeBeforeExpiration;
+    private int graceLoginsRemaining;
+    private String firstName;
+    private String middleName;
+    private String lastName;
+    private String emailAddress;
+
+    public String getDisplayName() {
+<span class="nc" id="L26">        return displayName;</span>
+    }
+
+    public void setDisplayName(String displayName) {
+<span class="nc" id="L30">        this.displayName = displayName;</span>
+<span class="nc" id="L31">    }</span>
+
+    @Override
+    public String getDn() {
+<span class="nc" id="L35">        return dn;</span>
+    }
+
+    public void setDn(String dn) {
+<span class="nc" id="L39">        this.dn = dn;</span>
+<span class="nc" id="L40">    }</span>
+
+    @Override
+    public String getPassword() {
+<span class="nc" id="L44">        return password;</span>
+    }
+
+    public void setPassword(String password) {
+<span class="nc" id="L48">        this.password = password;</span>
+<span class="nc" id="L49">    }</span>
+
+    @Override
+    public String getUsername() {
+<span class="nc" id="L53">        return username;</span>
+    }
+
+    public void setUsername(String username) {
+<span class="nc" id="L57">        this.username = username;</span>
+<span class="nc" id="L58">    }</span>
+
+    @Override
+    public Collection&lt;GrantedAuthority&gt; getAuthorities() {
+<span class="nc" id="L62">        return authorities;</span>
+    }
+
+    public void setAuthorities(Collection&lt;GrantedAuthority&gt; authorities) {
+<span class="nc" id="L66">        this.authorities = authorities;</span>
+<span class="nc" id="L67">    }</span>
+
+    @Override
+    public boolean isAccountNonExpired() {
+<span class="nc" id="L71">        return accountNonExpired;</span>
+    }
+
+    public void setAccountNonExpired(boolean accountNonExpired) {
+<span class="nc" id="L75">        this.accountNonExpired = accountNonExpired;</span>
+<span class="nc" id="L76">    }</span>
+
+    @Override
+    public boolean isAccountNonLocked() {
+<span class="nc" id="L80">        return accountNonLocked;</span>
+    }
+
+    public void setAccountNonLocked(boolean accountNonLocked) {
+<span class="nc" id="L84">        this.accountNonLocked = accountNonLocked;</span>
+<span class="nc" id="L85">    }</span>
+
+    @Override
+    public boolean isCredentialsNonExpired() {
+<span class="nc" id="L89">        return credentialsNonExpired;</span>
+    }
+
+    public void setCredentialsNonExpired(boolean credentialsNonExpired) {
+<span class="nc" id="L93">        this.credentialsNonExpired = credentialsNonExpired;</span>
+<span class="nc" id="L94">    }</span>
+
+    @Override
+    public boolean isEnabled() {
+<span class="nc" id="L98">        return enabled;</span>
+    }
+
+    public void setEnabled(boolean enabled) {
+<span class="nc" id="L102">        this.enabled = enabled;</span>
+<span class="nc" id="L103">    }</span>
+
+    public int getTimeBeforeExpiration() {
+<span class="nc" id="L106">        return timeBeforeExpiration;</span>
+    }
+
+    public void setTimeBeforeExpiration(int timeBeforeExpiration) {
+<span class="nc" id="L110">        this.timeBeforeExpiration = timeBeforeExpiration;</span>
+<span class="nc" id="L111">    }</span>
+
+    public int getGraceLoginsRemaining() {
+<span class="nc" id="L114">        return graceLoginsRemaining;</span>
+    }
+
+    public void setGraceLoginsRemaining(int graceLoginsRemaining) {
+<span class="nc" id="L118">        this.graceLoginsRemaining = graceLoginsRemaining;</span>
+<span class="nc" id="L119">    }</span>
+
+    public String getFirstName() {
+<span class="nc" id="L122">        return firstName;</span>
+    }
+
+    public void setFirstName(String firstName) {
+<span class="nc" id="L126">        this.firstName = firstName;</span>
+<span class="nc" id="L127">    }</span>
+
+    public String getMiddleName() {
+<span class="nc" id="L130">        return middleName;</span>
+    }
+
+    public void setMiddleName(String middleName) {
+<span class="nc" id="L134">        this.middleName = middleName;</span>
+<span class="nc" id="L135">    }</span>
+
+    public String getLastName() {
+<span class="nc" id="L138">        return lastName;</span>
+    }
+
+    public void setLastName(String lastName) {
+<span class="nc" id="L142">        this.lastName = lastName;</span>
+<span class="nc" id="L143">    }</span>
+
+    public String getEmailAddress() {
+<span class="nc" id="L146">        return emailAddress;</span>
+    }
+
+    public void setEmailAddress(String emailAddress) {
+<span class="nc" id="L150">        this.emailAddress = emailAddress;</span>
+<span class="nc" id="L151">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

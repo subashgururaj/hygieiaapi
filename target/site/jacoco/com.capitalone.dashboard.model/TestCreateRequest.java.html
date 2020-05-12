@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TestCreateRequest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.model</a> &gt; <span class="el_source">TestCreateRequest.java</span></div><h1>TestCreateRequest.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.model;
+
+
+import javax.validation.constraints.NotNull;
+
+
+<span class="fc" id="L7">public class TestCreateRequest {</span>
+
+    /**
+     * Type of test
+     */
+
+    @NotNull
+    private String testType;
+
+    @NotNull
+    private String sourceFormat;
+
+    @NotNull
+    private String source;
+
+    /**
+     * Creation timestamp
+     */
+
+    @NotNull
+    private String timeStamp;
+
+    private String configurationItem;
+
+    private String targetAppName;
+
+    private String targetServiceName;
+
+    private String testResult;
+
+    private String jobUrl;
+
+
+    public String getTestType() {
+<span class="fc" id="L41">        return testType;</span>
+    }
+
+    public void setTestType(String testType) {
+<span class="fc" id="L45">        this.testType = testType;</span>
+<span class="fc" id="L46">    }</span>
+
+    public String getSourceFormat() {
+<span class="fc" id="L49">        return sourceFormat;</span>
+    }
+
+    public void setSourceFormat(String sourceFormat) {
+<span class="fc" id="L53">        this.sourceFormat = sourceFormat;</span>
+<span class="fc" id="L54">    }</span>
+
+    public String getSource() {
+<span class="nc" id="L57">        return source;</span>
+    }
+
+    public void setSource(String source) {
+<span class="fc" id="L61">        this.source = source;</span>
+<span class="fc" id="L62">    }</span>
+
+
+    public String getTestResult() {
+<span class="fc" id="L66">        return testResult;</span>
+    }
+
+    public void setTestResult(String testResult) {
+<span class="fc" id="L70">        this.testResult = testResult;</span>
+<span class="fc" id="L71">    }</span>
+
+    public String getConfigurationItem() {
+<span class="fc" id="L74">        return configurationItem;</span>
+    }
+
+    public void setConfigurationItem(String configurationItem) {
+<span class="fc" id="L78">        this.configurationItem = configurationItem;</span>
+<span class="fc" id="L79">    }</span>
+
+    public String getTimeStamp() {
+<span class="fc" id="L82">        return timeStamp;</span>
+    }
+
+    public void setTimeStamp(String timeStamp) {
+<span class="fc" id="L86">        this.timeStamp = timeStamp;</span>
+<span class="fc" id="L87">    }</span>
+
+    public String getJobUrl() {
+<span class="fc" id="L90">        return jobUrl;</span>
+    }
+
+    public void setJobUrl(String jobUrl) {
+<span class="nc" id="L94">        this.jobUrl = jobUrl;</span>
+<span class="nc" id="L95">    }</span>
+
+    public String getTargetAppName() {
+<span class="fc" id="L98">        return targetAppName;</span>
+    }
+
+    public void setTargetAppName(String targetAppName) {
+<span class="nc" id="L102">        this.targetAppName = targetAppName;</span>
+<span class="nc" id="L103">    }</span>
+
+    public String getTargetServiceName() {
+<span class="nc" id="L106">        return targetServiceName;</span>
+    }
+
+    public void setTargetServiceName(String targetServiceName) {
+<span class="nc" id="L110">        this.targetServiceName = targetServiceName;</span>
+<span class="nc" id="L111">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

@@ -1,0 +1,931 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DynamicPipelineServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.service</a> &gt; <span class="el_source">DynamicPipelineServiceImpl.java</span></div><h1>DynamicPipelineServiceImpl.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.service;
+
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.GregorianCalendar;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import com.capitalone.dashboard.misc.HygieiaException;
+import org.apache.commons.lang.ObjectUtils;
+import org.apache.log4j.Logger;
+import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.capitalone.dashboard.settings.ApiSettings;
+import com.capitalone.dashboard.model.ArtifactIdentifier;
+import com.capitalone.dashboard.model.BinaryArtifact;
+import com.capitalone.dashboard.model.Build;
+import com.capitalone.dashboard.model.BuildStatus;
+import com.capitalone.dashboard.model.CollectorItem;
+import com.capitalone.dashboard.model.CollectorType;
+import com.capitalone.dashboard.model.Commit;
+import com.capitalone.dashboard.model.Component;
+import com.capitalone.dashboard.model.Dashboard;
+import com.capitalone.dashboard.model.DataResponse;
+import com.capitalone.dashboard.model.EnvironmentStage;
+import com.capitalone.dashboard.model.Pipeline;
+import com.capitalone.dashboard.model.PipelineCommit;
+import com.capitalone.dashboard.model.PipelineResponse;
+import com.capitalone.dashboard.model.PipelineResponseCommit;
+import com.capitalone.dashboard.model.PipelineStage;
+import com.capitalone.dashboard.model.RepoBranch;
+import com.capitalone.dashboard.model.RepoBranch.RepoType;
+import com.capitalone.dashboard.model.SCM;
+import com.capitalone.dashboard.model.deploy.DeployableUnit;
+import com.capitalone.dashboard.model.deploy.Environment;
+import com.capitalone.dashboard.repository.CollectorItemRepository;
+import com.capitalone.dashboard.repository.DashboardRepository;
+import com.capitalone.dashboard.repository.PipelineRepository;
+import com.capitalone.dashboard.request.BinaryArtifactSearchRequest;
+import com.capitalone.dashboard.request.BuildSearchRequest;
+import com.capitalone.dashboard.request.CommitRequest;
+import com.capitalone.dashboard.request.PipelineSearchRequest;
+import com.capitalone.dashboard.util.HygieiaUtils;
+import com.capitalone.dashboard.util.PipelineUtils;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Multimap;
+
+/**
+ * An implementation of PipelineService that computes pipelines dynamically.
+ * &lt;p&gt;
+ * For more details see {@link #buildPipeline(Pipeline, Long, Long)}.
+ * 
+ * @author &lt;a href=&quot;mailto:MarkRx@users.noreply.github.com&quot;&gt;MarkRx&lt;/a&gt;
+ */
+<span class="pc bpc" id="L66" title="1 of 2 branches missed.">@Service(&quot;dynamic-pipeline&quot;)</span>
+public class DynamicPipelineServiceImpl implements PipelineService {
+<span class="fc" id="L68">	private static final Logger logger = Logger.getLogger(DynamicPipelineServiceImpl.class);</span>
+
+    private static final int PROD_COMMIT_DATE_RANGE_DEFAULT = -90;
+    
+<span class="fc" id="L72">    private static final Comparator&lt;Build&gt; BUILD_NUMBER_COMPATATOR = new Comparator&lt;Build&gt;() {</span>
+
+		@Override
+		public int compare(Build o1, Build o2) {
+<span class="pc bpc" id="L76" title="1 of 2 branches missed.">			int b1Int = o1.getNumber() != null? Integer.valueOf(o1.getNumber()) : 0;</span>
+<span class="pc bpc" id="L77" title="1 of 2 branches missed.">			int b2Int = o2.getNumber() != null? Integer.valueOf(o2.getNumber()) : 0;</span>
+			
+<span class="fc" id="L79">			return b2Int - b1Int;</span>
+		}
+    	
+    };
+    
+    private final PipelineRepository pipelineRepository;
+    private final DashboardRepository dashboardRepository;
+    private final CollectorItemRepository collectorItemRepository;
+    
+    private final BinaryArtifactService binaryArtifactService;
+    private final BuildService buildService;
+    private final CommitService commitService;
+	private final DeployService deployService;
+	private final ApiSettings settings;
+    
+    @Autowired
+    public DynamicPipelineServiceImpl(PipelineRepository pipelineRepository, DashboardRepository dashboardRepository,
+			CollectorItemRepository collectorItemRepository, BinaryArtifactService binaryArtifactService,
+			BuildService buildService, CommitService commitService, DeployService deployService, ApiSettings settings) {
+<span class="fc" id="L98">		super();</span>
+<span class="fc" id="L99">		this.pipelineRepository = pipelineRepository;</span>
+<span class="fc" id="L100">		this.dashboardRepository = dashboardRepository;</span>
+<span class="fc" id="L101">		this.collectorItemRepository = collectorItemRepository;</span>
+<span class="fc" id="L102">		this.binaryArtifactService = binaryArtifactService;</span>
+<span class="fc" id="L103">		this.buildService = buildService;</span>
+<span class="fc" id="L104">		this.commitService = commitService;</span>
+<span class="fc" id="L105">		this.deployService = deployService;</span>
+<span class="fc" id="L106">		this.settings = settings;</span>
+<span class="fc" id="L107">	}</span>
+	
+	@Override
+	public Iterable&lt;PipelineResponse&gt; search(PipelineSearchRequest searchRequest) throws HygieiaException {
+        //sets the lower and upper bound for the prod bucket's commits.  uses constant for lower bound limit and today as default for upper bound
+<span class="fc" id="L112">        Long lowerBound = searchRequest.getBeginDate();</span>
+        //if(lowerBound == null){
+        	// TODO get incremental updates working
+<span class="fc" id="L115">            lowerBound = getMinStart();</span>
+        //}
+<span class="pc bpc" id="L117" title="1 of 2 branches missed.">        Long upperBound = searchRequest.getEndDate() != null ? searchRequest.getEndDate() : new Date().getTime();</span>
+		
+<span class="fc" id="L119">        List&lt;PipelineResponse&gt; pipelineResponses = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L120" title="All 2 branches covered.">        for(ObjectId collectorItemId : searchRequest.getCollectorItemId()){</span>
+<span class="fc" id="L121">            Pipeline pipeline = getOrCreatePipeline(collectorItemId);</span>
+<span class="fc" id="L122">            pipeline = buildPipeline(pipeline, lowerBound, upperBound);</span>
+
+            // This will make debugging much easier
+<span class="fc" id="L125">            pipelineRepository.save(pipeline);</span>
+            
+<span class="fc" id="L127">            pipelineResponses.add(buildPipelineResponse(pipeline, lowerBound, upperBound));</span>
+            
+<span class="fc" id="L129">        }</span>
+<span class="fc" id="L130">        return pipelineResponses;</span>
+	}
+	
+    protected Pipeline getOrCreatePipeline(ObjectId collectorItemId) {
+<span class="fc" id="L134">        Pipeline pipeline = pipelineRepository.findByCollectorItemId(collectorItemId);</span>
+<span class="pc bpc" id="L135" title="1 of 2 branches missed.">        if(pipeline == null){</span>
+<span class="fc" id="L136">            pipeline = new Pipeline();</span>
+<span class="fc" id="L137">            pipeline.setCollectorItemId(collectorItemId);</span>
+<span class="fc" id="L138">            pipelineRepository.save(pipeline);</span>
+        }
+<span class="fc" id="L140">        return pipeline;</span>
+    }
+    
+    // Creates the response that is returned to the client
+    private PipelineResponse buildPipelineResponse(Pipeline pipeline, Long lowerBound, Long upperBound) throws HygieiaException {
+        /**
+         * get the collector item and dashboard
+         */
+<span class="fc" id="L148">        CollectorItem dashboardCollectorItem = collectorItemRepository.findOne(pipeline.getCollectorItemId());</span>
+<span class="fc" id="L149">        Dashboard dashboard = dashboardRepository.findOne(new ObjectId((String)dashboardCollectorItem.getOptions().get(&quot;dashboardId&quot;)));</span>
+        
+<span class="fc" id="L151">        PipelineResponse pipelineResponse = new PipelineResponse();</span>
+<span class="fc" id="L152">        pipelineResponse.setCollectorItemId(dashboardCollectorItem.getId());</span>
+        // Fix for 1254
+<span class="fc" id="L154">		pipelineResponse.setProdStage(PipelineUtils.getProdStage(dashboard));</span>
+<span class="fc" id="L155">		pipelineResponse.setOrderMap(PipelineUtils.getOrderForStages(dashboard));</span>
+<span class="fc" id="L156">		Map&lt;PipelineStage, String&gt; stageToEnvironmentNameMap = PipelineUtils.getStageToEnvironmentNameMap(dashboard);</span>
+
+
+<span class="fc" id="L159">		List&lt;PipelineStage&gt; pipelineStageList = new ArrayList&lt;&gt;();</span>
+
+<span class="fc bfc" id="L161" title="All 2 branches covered.">		for (PipelineStage pl : stageToEnvironmentNameMap.keySet()) {</span>
+<span class="fc" id="L162">			pipelineStageList.add(pl);</span>
+<span class="fc" id="L163">		}</span>
+
+        /**
+         * iterate over the pipeline stages
+         * **/
+<span class="fc bfc" id="L168" title="All 2 branches covered.">        for(PipelineStage stage : pipelineStageList){</span>
+
+<span class="fc" id="L170">            List&lt;PipelineResponseCommit&gt; commitsForStage = findNotPropagatedCommits(dashboard, pipeline, stage,pipelineStageList);</span>
+<span class="fc" id="L171">            pipelineResponse.setStageCommits(stage, commitsForStage);</span>
+<span class="fc" id="L172">        }</span>
+<span class="fc" id="L173">       return pipelineResponse;</span>
+    }
+    
+    /**
+     * Dynamically calculates what should be in a Pipeline.
+     * &lt;p&gt;
+     * A pipeline contains 3 section types: commits, builds, and deployments. The deployment
+     * section is further subdivided into environments. This method gathers information
+     * from collectors for the team dashboard that the pipeline corresponds to and makes a reasonable
+     * attempt to correlate it.
+     * &lt;p&gt;
+     * Data is correlated in the following ways:
+     * &lt;ul&gt;
+     * &lt;li&gt;&lt;b&gt;Build -&amp;gt; Commit&lt;/b&gt;: Builds keep track of the SCM revision numbers as well as the repository
+     * and branch information (though builds with multiple repositories are not 100% accurate). Given a list
+     * of commits for the dashboard we can correlate builds to them using the scm revision number.&lt;/li&gt;
+     * &lt;li&gt;&lt;b&gt;EnvironmentComponent -&amp;gt; BinaryArtifact&lt;/b&gt;: Given a list of {@link Environment}s we can gather
+     * DeploymentUnits and associate them to {@link BinaryArtifact}s by the component name and version number.
+     * In the future this information may be stored in metadata that is retrieved by the deployment collector.
+     * &lt;li&gt;&lt;b&gt;BinaryArtifact -&amp;gt; Commit&lt;/b&gt;: An artifact will contain information about the HEAD svn revision
+     * number that was used to produce it. Given the scm revision number we can find it in our list of commits
+     * that are tracked for the dashboard and determine it along with all previous commits. For GIT this is done
+     * using a graph buitl from {@link Commit#getScmParentRevisionNumbers()}. For SVN we simply grab all revisions
+     * with a number less than ours.&lt;/li&gt;
+     * &lt;/ul&gt;
+     * 
+     * @param pipeline		the pipeline to calculate
+     * @param lowerBound	the lower window bound for gathering statistics
+     * @param upperBound	the upper window bound for gathering statistics
+     * @return				the &lt;b&gt;pipeline&lt;/b&gt; passed in
+     */
+    protected Pipeline buildPipeline(Pipeline pipeline, Long lowerBound, Long upperBound) {
+<span class="fc" id="L205">        CollectorItem dashboardCollectorItem = collectorItemRepository.findOne(pipeline.getCollectorItemId());</span>
+<span class="fc" id="L206">        Dashboard dashboard = dashboardRepository.findOne(new ObjectId((String)dashboardCollectorItem.getOptions().get(&quot;dashboardId&quot;)));</span>
+
+        // First gather information about our dashboard
+        
+        // TODO how should we handle multiple components?
+<span class="fc" id="L211">        Component component = dashboard.getApplication().getComponents().iterator().next();</span>
+
+        // Note - since other items link to commits we always need to pull all of our commit data
+<span class="fc" id="L214">        List&lt;Commit&gt; commits = getCommits(component, getMinStart(), upperBound);</span>
+<span class="fc" id="L215">        List&lt;Build&gt; builds = getBuilds(component, lowerBound, upperBound);</span>
+<span class="fc" id="L216">        List&lt;Environment&gt; environments = getEnvironments(component);</span>
+<span class="fc" id="L217">        Map&lt;Environment, Collection&lt;ArtifactIdentifier&gt;&gt; environmentArtifactIdentifiers = getArtifactIdentifiers(environments);</span>
+<span class="fc" id="L218">        Map&lt;ArtifactIdentifier, Collection&lt;BinaryArtifact&gt;&gt; artifacts = getBinaryArtifacts(</span>
+<span class="fc" id="L219">        		environmentArtifactIdentifiers.values().stream().flatMap( coll -&gt; coll.stream()).collect(Collectors.toList()));</span>
+    	
+    	// We only want builds that belong to our repo
+<span class="fc" id="L222">    	RepoBranch repo = getComponentRepoBranch(component);</span>
+<span class="fc" id="L223">    	builds = filterBuilds(builds, repo.getUrl(), repo.getBranch());</span>
+<span class="fc" id="L224">    	artifacts = filterBinaryArtifacts(artifacts, repo.getUrl(), repo.getBranch());</span>
+    	
+    	// we assume all the builds belong to the same job
+<span class="fc" id="L227">    	Collections.sort(builds, BUILD_NUMBER_COMPATATOR);</span>
+        
+        // recompute pipeline
+<span class="fc" id="L230">        pipeline.setFailedBuilds(new HashSet&lt;&gt;());</span>
+<span class="fc" id="L231">        pipeline.setEnvironmentStageMap(new HashMap&lt;&gt;());</span>
+        
+<span class="fc" id="L233">        processCommits(pipeline, commits);</span>
+<span class="fc" id="L234">        processBuilds(pipeline, builds, commits);</span>
+<span class="fc" id="L235">        processDeployments(pipeline, environments, artifacts, commits);</span>
+        
+<span class="fc" id="L237">        return pipeline;</span>
+    }
+
+    /**
+     * Computes the commit stage of the pipeline.
+     * 
+     * @param pipeline	
+     * @param commits
+     */
+	protected void processCommits(Pipeline pipeline, List&lt;Commit&gt; commits) {
+		// TODO when processing commits should we only add the commits that are within the time boundaries?
+<span class="fc" id="L248">    	Set&lt;String&gt; seenRevisionNumbers = new HashSet&lt;&gt;();</span>
+    	
+<span class="pc bpc" id="L250" title="1 of 2 branches missed.">    	if (logger.isDebugEnabled()) {</span>
+<span class="nc" id="L251">    		StringBuilder sb = new StringBuilder();</span>
+<span class="nc" id="L252">    		sb.append(&quot;\n===== Commit List =====\n&quot;);</span>
+<span class="nc bnc" id="L253" title="All 2 branches missed.">    		for (Commit commit : commits) {</span>
+<span class="nc" id="L254">    			sb.append(&quot;    - &quot; + commit.getId() + &quot; (&quot; + commit.getScmRevisionNumber() + &quot;) - &quot; + commit.getScmCommitLog() + &quot;\n&quot;);</span>
+<span class="nc" id="L255">    		}</span>
+    		
+<span class="nc" id="L257">    		logger.debug(sb.toString());</span>
+    	}
+    	
+<span class="fc bfc" id="L260" title="All 2 branches covered.">    	for (Commit commit : commits) {</span>
+<span class="fc" id="L261">    		boolean commitNotSeen = seenRevisionNumbers.add(commit.getScmRevisionNumber());</span>
+    		
+<span class="pc bpc" id="L263" title="1 of 2 branches missed.">    		if (commitNotSeen) {</span>
+<span class="fc" id="L264">    			pipeline.addCommit(PipelineStage.COMMIT.getName(), new PipelineCommit(commit, commit.getScmCommitTimestamp()));</span>
+    		}
+<span class="fc" id="L266">		}</span>
+<span class="fc" id="L267">    }</span>
+    
+	/**
+	 * Computes the build stage of the pipeline.
+	 * &lt;p&gt;
+	 * Given a list of builds and commits, this method will associate builds to commits and then
+	 * add commits to the build stage of the pipeline. Only commits that are tracked by our dashboard
+	 * are added meaning that if a build builds some other branch the commit information for that branch
+	 * will not be put into the pipeline.
+	 * 
+	 * Note: At present some extraneous builds may be processed due to limitations in the jenkins api
+	 * when there are multiple branches being built by the same job.
+	 * 
+	 * @param pipeline
+	 * @param builds	a list of builds sorted descending by build number
+	 * @param commits
+	 */
+    protected void processBuilds(Pipeline pipeline, List&lt;Build&gt; builds, List&lt;Commit&gt; commits) {
+    	// sort again in case code changes in future to be safe
+<span class="fc" id="L286">    	List&lt;Build&gt; sortedBuilds = new ArrayList&lt;&gt;(builds);</span>
+<span class="fc" id="L287">    	Collections.sort(sortedBuilds, BUILD_NUMBER_COMPATATOR);</span>
+<span class="fc" id="L288">    	Multimap&lt;ObjectId, Commit&gt; buildCommits = buildBuildToCommitsMap(sortedBuilds, commits);</span>
+    	
+<span class="pc bpc" id="L290" title="1 of 2 branches missed.">    	if (logger.isDebugEnabled()) {</span>
+<span class="nc" id="L291">    		StringBuilder sb = new StringBuilder();</span>
+<span class="nc" id="L292">    		sb.append(&quot;\n===== Build Commit Mapping =====\n&quot;);</span>
+<span class="nc bnc" id="L293" title="All 2 branches missed.">    		for (Build build : sortedBuilds) {</span>
+<span class="nc" id="L294">    			sb.append(&quot;    - &quot; + build.getBuildUrl() + &quot; -&gt; &quot;);</span>
+    			
+<span class="nc" id="L296">    			Collection&lt;Commit&gt; commitsForBuild = buildCommits.get(build.getId());</span>
+    			
+<span class="nc bnc" id="L298" title="All 4 branches missed.">    			if (commitsForBuild != null &amp;&amp; !commitsForBuild.isEmpty()) {</span>
+<span class="nc" id="L299">    				boolean hasPrinted = false;</span>
+<span class="nc bnc" id="L300" title="All 2 branches missed.">    				for (Commit commit : commitsForBuild) {</span>
+<span class="nc bnc" id="L301" title="All 2 branches missed.">    					if (hasPrinted) {</span>
+<span class="nc" id="L302">    						sb.append(&quot;, &quot;);</span>
+    					}
+    					
+<span class="nc" id="L305">    					sb.append(commit.getId());</span>
+    					
+<span class="nc" id="L307">    					hasPrinted = true;</span>
+<span class="nc" id="L308">    				}</span>
+<span class="nc" id="L309">    			} else {</span>
+<span class="nc" id="L310">    				sb.append(&quot;(NONE) - No commits for build exists/found.&quot;);</span>
+    			}
+    			
+<span class="nc" id="L313">    			sb.append(&quot;\n&quot;);</span>
+<span class="nc" id="L314">    		}</span>
+    		
+<span class="nc" id="L316">    		logger.debug(sb.toString());</span>
+    	}
+    	
+<span class="fc" id="L319">    	Set&lt;String&gt; seenRevisionNumbers = new HashSet&lt;&gt;();</span>
+		
+<span class="fc" id="L321">    	Build latestSuccessfulBuild = null;</span>
+<span class="fc" id="L322">    	Build lastSuccessfulBuild = null;</span>
+<span class="fc bfc" id="L323" title="All 2 branches covered.">		for (Build build : sortedBuilds) {</span>
+<span class="fc" id="L324">			boolean isSuccessful = BuildStatus.Success.equals(build.getBuildStatus());</span>
+			
+<span class="fc bfc" id="L326" title="All 2 branches covered.">			if (isSuccessful) {</span>
+<span class="fc" id="L327">				lastSuccessfulBuild = build;</span>
+				
+<span class="fc bfc" id="L329" title="All 2 branches covered.">				if (latestSuccessfulBuild == null) {</span>
+<span class="fc" id="L330">					latestSuccessfulBuild = build;</span>
+				}
+			}
+			
+<span class="pc bpc" id="L334" title="1 of 4 branches missed.">			if (isSuccessful || (lastSuccessfulBuild != null)) {</span>
+<span class="fc" id="L335">				Collection&lt;Commit&gt; commitsForBuild = buildCommits.get(build.getId());</span>
+				
+				/*
+				 * If the build belongs to a branch that has commits we are not tracking or if 
+				 * the commit is greater than 90 days old this will be null as we will not have
+				 * a corresponding commit from our commits collection. This is desired as we don't
+				 * want to track commits outside of our window or commits that belong to different
+				 * branches.
+				 */
+<span class="pc bpc" id="L344" title="1 of 2 branches missed.">				if (commitsForBuild != null) {</span>
+<span class="fc bfc" id="L345" title="All 2 branches covered.">					for (Commit commit : commitsForBuild) {</span>
+<span class="fc" id="L346">						boolean commitNotSeen = seenRevisionNumbers.add(commit.getScmRevisionNumber());</span>
+						
+						/*
+						 * Multiple builds may reference the same commit. For example, a failed build followed by a 
+						 * successful build may reference the same commit. We will use the first time we come across
+						 * the commit as the build it belongs to.
+						 */
+<span class="pc bpc" id="L353" title="1 of 2 branches missed.">						if (commitNotSeen) {</span>
+<span class="fc bfc" id="L354" title="All 2 branches covered.">							long timestamp = isSuccessful? build.getStartTime() : lastSuccessfulBuild.getStartTime();</span>
+<span class="fc" id="L355">							pipeline.addCommit(PipelineStage.BUILD.getName(), new PipelineCommit(commit, timestamp));</span>
+						}
+<span class="fc" id="L357">            		}</span>
+				}
+			}
+<span class="fc" id="L360">		}</span>
+		
+		// Gather commits that didn't participate in a build for one reason or another but have been processed
+		// For now use what is in BuildEventListener... this may need to be improved upon in the future
+<span class="pc bpc" id="L364" title="1 of 2 branches missed.">		if (latestSuccessfulBuild != null) {</span>
+<span class="fc bfc" id="L365" title="All 2 branches covered.">			for (Commit commit : commits) {</span>
+<span class="fc bfc" id="L366" title="All 2 branches covered.">				if (seenRevisionNumbers.contains(commit.getScmRevisionNumber())) {</span>
+<span class="fc" id="L367">					continue;</span>
+				}
+				
+<span class="fc bfc" id="L370" title="All 2 branches covered.">				if (commit.getScmCommitTimestamp() &lt; latestSuccessfulBuild.getStartTime()) {</span>
+<span class="pc bpc" id="L371" title="1 of 2 branches missed.">					if (logger.isDebugEnabled()) {</span>
+<span class="nc" id="L372">						logger.debug(&quot;processBuilds adding orphaned build commit &quot; + commit.getScmRevisionNumber());</span>
+					}
+					
+<span class="fc" id="L375">					pipeline.addCommit(PipelineStage.BUILD.getName(), new PipelineCommit(commit, commit.getScmCommitTimestamp()));</span>
+				}
+<span class="fc" id="L377">			}</span>
+		}
+<span class="fc" id="L379">    }</span>
+    
+    /**
+     * Computes the build stage of the pipeline.
+     * &lt;p&gt;
+     * Iterates over each environment to determine what commits currently exist in the current deployment.
+     * Given an {@link Environment} this method will iterate over its {@link DeploymentUnit}s until
+     * a unit is found that corresponds to a {@link BinaryArtifact} that exists in the artifacts
+     * collection. DeploymentUnits are artifacts are currently correlated by name and version.
+     * If the artifact is found an attempt is made to find the last {@link Commit} that was used
+     * when producing the artifact. With this information all previous commits can be deduced and
+     * thus added to the pipeline at each environment stage that is processed.
+     * 
+     * @param pipeline
+     * @param environments
+     * @param artifacts
+     * @param commits
+     * @see #buildPipeline(Pipeline, Long, Long)
+     */
+    protected void processDeployments(Pipeline pipeline, List&lt;Environment&gt; environments,
+			Map&lt;ArtifactIdentifier, Collection&lt;BinaryArtifact&gt;&gt; artifacts, List&lt;Commit&gt; commits) {
+    	
+<span class="pc bpc" id="L401" title="1 of 2 branches missed.">    	if (logger.isDebugEnabled()) {</span>
+<span class="nc" id="L402">    		StringBuilder sb = new StringBuilder();</span>
+    		
+<span class="nc" id="L404">    		sb.append(&quot;\n===== Environment Artifact Mapping =====\n&quot;);</span>
+<span class="nc bnc" id="L405" title="All 2 branches missed.">    		for (Environment env : environments) {</span>
+<span class="nc" id="L406">    			sb.append(&quot;    - &quot; + env.getName() + &quot;\n&quot;);</span>
+    			
+<span class="nc bnc" id="L408" title="All 4 branches missed.">    			if (env.getUnits() != null &amp;&amp; !env.getUnits().isEmpty()) {</span>
+<span class="nc bnc" id="L409" title="All 2 branches missed.">    				for (DeployableUnit du : env.getUnits()) {</span>
+    					/*
+    					 * Note: At present we do not have a way to determine artifact gruop information
+    					 * from deployments. Thus if multiple distinct artifacts have the same name and
+    					 * version information the wrong artifact may be picked. A future enhancement will
+    					 * have to improve artifact correlation by storing deployment artifact information
+    					 * in deployment tools and then using this to find the correct BinaryArtifact in
+    					 * the artifacts collection.
+    					 */
+<span class="nc" id="L418">    					ArtifactIdentifier id = new ArtifactIdentifier(null, du.getName(), du.getVersion(), null, null);</span>
+<span class="nc" id="L419">    					sb.append(&quot;        - &quot; + id.getGroup() + &quot;:&quot; + id.getName() + &quot;:&quot; + id.getVersion() + &quot; -&gt; &quot;);</span>
+    					
+<span class="nc" id="L421">    					Collection&lt;BinaryArtifact&gt; tmp = artifacts.get(id);</span>
+<span class="nc bnc" id="L422" title="All 4 branches missed.">        				if (tmp != null &amp;&amp; !tmp.isEmpty()) {</span>
+<span class="nc" id="L423">        					boolean hasPrinted = false;</span>
+<span class="nc bnc" id="L424" title="All 2 branches missed.">        					for (BinaryArtifact ba : tmp) {</span>
+<span class="nc bnc" id="L425" title="All 2 branches missed.">        						if (hasPrinted) {</span>
+<span class="nc" id="L426">        							sb.append(&quot;, &quot;);</span>
+        						}
+        						
+<span class="nc" id="L429">        						sb.append(ba.getId());</span>
+        						
+<span class="nc" id="L431">        						hasPrinted = true;</span>
+<span class="nc" id="L432">        					}</span>
+<span class="nc" id="L433">        				} else {</span>
+<span class="nc" id="L434">        					sb.append(&quot;(NONE) - No BinaryArtifacts found!&quot;);</span>
+        				}
+        				
+<span class="nc" id="L437">        				sb.append(&quot;\n&quot;);</span>
+<span class="nc" id="L438">    				}</span>
+    			} else {
+<span class="nc" id="L440">        			sb.append(&quot;        - (NONE) - No DeployableUnits found!\n&quot;);</span>
+        		}
+<span class="nc" id="L442">    		}</span>
+    		
+<span class="nc" id="L444">    		logger.debug(sb.toString());</span>
+    	}
+    	
+    	// Build commit graph - child : parents
+<span class="fc" id="L448">    	Map&lt;String, Commit&gt; commitsByRevisionNumber = buildRevisionNumberToCommitMap(commits);</span>
+<span class="fc" id="L449">    	Map&lt;String, Collection&lt;String&gt;&gt; commitGraph = buildCommitGraph(commits);</span>
+
+    	// iterate through this in case other maps ignore missing items
+<span class="fc bfc" id="L452" title="All 2 branches covered.">    	for (Environment env : environments) {</span>
+<span class="fc" id="L453">    		EnvironmentStage stage = new EnvironmentStage();</span>
+    		
+<span class="fc" id="L455">    		BinaryArtifact artifact = null;</span>
+<span class="fc" id="L456">    		DeployableUnit deployableUnit = null;</span>
+<span class="pc bpc" id="L457" title="1 of 2 branches missed.">    		if (env.getUnits() != null) {</span>
+<span class="pc bpc" id="L458" title="1 of 2 branches missed.">    			for (DeployableUnit du : env.getUnits()) {</span>
+<span class="fc" id="L459">    				ArtifactIdentifier id = new ArtifactIdentifier(null, du.getName(), du.getVersion(), null, null);</span>
+    				
+<span class="fc" id="L461">    				Collection&lt;BinaryArtifact&gt; tmp = artifacts.get(id);</span>
+<span class="pc bpc" id="L462" title="2 of 4 branches missed.">    				if (tmp != null &amp;&amp; !tmp.isEmpty()) {</span>
+<span class="fc" id="L463">    					artifact = tmp.iterator().next();</span>
+<span class="fc" id="L464">    					deployableUnit = du;</span>
+<span class="fc" id="L465">    					break;</span>
+    				}
+<span class="nc" id="L467">    			}</span>
+    		}
+    		
+<span class="pc bpc" id="L470" title="1 of 2 branches missed.">    		if (artifact != null) {</span>
+    			// we already filtered out bas that don't correspond to our repo
+<span class="fc" id="L472">    			String revsionNumber = artifact.getScmRevisionNumber();</span>
+    			
+<span class="fc" id="L474">    			List&lt;String&gt; commitRevisionNumbers = getCommitHistory(commitGraph, revsionNumber);</span>
+    			
+<span class="fc bfc" id="L476" title="All 2 branches covered.">    			for (String rev : commitRevisionNumbers) {</span>
+<span class="fc" id="L477">    				Commit commit = commitsByRevisionNumber.get(rev);</span>
+    				
+<span class="pc bpc" id="L479" title="1 of 2 branches missed.">    				if (commit == null) {</span>
+<span class="nc" id="L480">    					logger.warn(&quot;Error encountered building pipeline: commit information missing for revision &quot; + rev);</span>
+    				} else {
+<span class="fc" id="L482">    					stage.addCommit(new PipelineCommit(commit, deployableUnit.getLastUpdated()));</span>
+    				}
+<span class="fc" id="L484">    			}</span>
+    		}
+    		
+<span class="fc" id="L487">    		pipeline.getEnvironmentStageMap().put(env.getName(), stage);</span>
+<span class="fc" id="L488">    	}</span>
+<span class="fc" id="L489">    }</span>
+    
+    /**
+     * Filters out builds from the dashboard's job that used a different repository.
+     * &lt;p&gt;
+     * Builds picked up by a jenkins job might refer to different repositories if users
+     * changed the job around at one point. We are only interested in the repository
+     * that all of our commits come from. This fill filter out builds that do not 
+     * correspond to our repository.
+     * &lt;p&gt;
+     * Note that this method may not work 100% due to limitations gathering data from
+     * the jenkins api. See note in code for more information.
+     * 
+     * @param builds	a list of builds
+     * @param url		the url of the repository we are interested in
+     * @param branch	the branch of the repository we are interested in
+     * @return 			the filtered list
+     */
+    protected List&lt;Build&gt; filterBuilds(List&lt;Build&gt; builds, String url, String branch) {
+<span class="fc" id="L508">    	List&lt;Build&gt; rt = new ArrayList&lt;Build&gt;();</span>
+<span class="pc bpc" id="L509" title="1 of 2 branches missed.">    	String urlNoNull = url != null? url : &quot;&quot;;</span>
+    	//String branchNoNull = branch != null? branch : &quot;&quot;;
+    	
+<span class="fc bfc" id="L512" title="All 2 branches covered.">    	for (Build build : builds) {</span>
+<span class="fc" id="L513">    		boolean added = false;</span>
+    		
+    		// TODO this is not reliable
+<span class="pc bpc" id="L516" title="1 of 2 branches missed.">    		for (RepoBranch repo : build.getCodeRepos()) {</span>
+<span class="pc bpc" id="L517" title="1 of 2 branches missed.">    			String rurl = repo.getUrl() != null? repo.getUrl() : &quot;&quot;;</span>
+    			//String rbranch = repo.getBranch() != null? repo.getBranch() : &quot;&quot;;
+    			
+    			/*
+    			 * Note:
+    			 * Based on https://github.com/capitalone/Hygieia/pull/857 and experimentation it seems
+    			 * that branch information on the repo's is not 100% reliable when there are multiple 
+    			 * repositories that participate in the build (at least for jenkins). It appears that jenkins 
+    			 * will spawn of multiple builds but each build will have all of the repositories listed
+    			 * that participated in the first build. This means that we cannot distinguish which particular
+    			 * branch the build used in this case.
+    			 * 
+    			 * As a result the timestamping of commits may be a little off in the build portion of the pipeline.
+    			 * We shouldn't however pick up commits that exist in other branches but not the branch we are tracking
+    			 * because when processBuilds runs those extraneous commits will be dropped since they will not link
+    			 * to a commit that we are tracking.
+    			 */
+    			// do not check type since it might not be known
+<span class="pc bpc" id="L535" title="1 of 2 branches missed.">    			if (HygieiaUtils.smartUrlEquals(urlNoNull, rurl) /*&amp;&amp; ObjectUtils.equals(branchNoNull, rbranch)*/) {</span>
+<span class="fc" id="L536">    				rt.add(build);</span>
+<span class="fc" id="L537">    				added = true;</span>
+<span class="fc" id="L538">    				break;</span>
+    			}
+<span class="nc" id="L540">    		}</span>
+    		
+<span class="pc bpc" id="L542" title="3 of 4 branches missed.">    		if (logger.isDebugEnabled() &amp;&amp; !added) {</span>
+<span class="nc" id="L543">    			StringBuilder sb = new StringBuilder();</span>
+<span class="nc" id="L544">    			sb.append(&quot;Ignoring build &quot; + build.getBuildUrl() + &quot; since it does not use the component's repository\n&quot;);</span>
+<span class="nc" id="L545">    			sb.append(&quot;Component repo: (url: &quot; + url + &quot; branch: &quot; + branch + &quot;)\n&quot;);</span>
+<span class="nc" id="L546">    			sb.append(&quot;Build repos:    &quot;);</span>
+    			
+<span class="nc" id="L548">    			boolean hasPrinted = false;</span>
+<span class="nc bnc" id="L549" title="All 2 branches missed.">    			for (RepoBranch repo : build.getCodeRepos()) {</span>
+<span class="nc bnc" id="L550" title="All 2 branches missed.">    				if (hasPrinted) {</span>
+<span class="nc" id="L551">    					sb.append(&quot;                &quot;);</span>
+    				}
+    				
+<span class="nc" id="L554">    				sb.append(&quot;(url: &quot; + repo.getUrl() + &quot; branch: &quot; + repo.getBranch() + &quot;)\n&quot;);</span>
+    				
+<span class="nc" id="L556">    				hasPrinted = true;</span>
+<span class="nc" id="L557">    			}</span>
+    			
+<span class="nc bnc" id="L559" title="All 2 branches missed.">    			if (!hasPrinted) {</span>
+<span class="nc" id="L560">    				sb.append(&quot;(None)\n&quot;);</span>
+    			}
+    			
+<span class="nc" id="L563">    			logger.debug(sb.toString());</span>
+    		}
+<span class="fc" id="L565">    	}</span>
+    	
+<span class="fc" id="L567">    	return rt;</span>
+    }
+    
+    /**
+     * Filters out {@link BinaryArtifact}s that did not come from a specified repository
+     * 
+     * @param artifactsMap	a map of binary artifacts
+     * @param url			the repository url
+     * @param branch		the repository branch
+     * @return				the filtered list
+     */
+    protected Map&lt;ArtifactIdentifier, Collection&lt;BinaryArtifact&gt;&gt; filterBinaryArtifacts(Map&lt;ArtifactIdentifier, Collection&lt;BinaryArtifact&gt;&gt; artifactsMap, String url, String branch) {
+<span class="fc" id="L579">    	Map&lt;ArtifactIdentifier, Collection&lt;BinaryArtifact&gt;&gt; rt = new HashMap&lt;&gt;();</span>
+<span class="pc bpc" id="L580" title="1 of 2 branches missed.">    	String urlNoNull = url != null? url : &quot;&quot;;</span>
+<span class="pc bpc" id="L581" title="1 of 2 branches missed.">    	String branchNoNull = branch != null? branch : &quot;&quot;;</span>
+    	
+<span class="fc bfc" id="L583" title="All 2 branches covered.">    	for (Map.Entry&lt;ArtifactIdentifier, Collection&lt;BinaryArtifact&gt;&gt; e : artifactsMap.entrySet()) {</span>
+<span class="fc" id="L584">    		ArtifactIdentifier id = e.getKey();</span>
+<span class="fc" id="L585">    		List&lt;BinaryArtifact&gt; artifacts = new ArrayList&lt;&gt;();</span>
+    		
+<span class="fc" id="L587">    		boolean added = false;</span>
+<span class="pc bpc" id="L588" title="1 of 2 branches missed.">    		for (BinaryArtifact ba : e.getValue()) {</span>
+<span class="fc" id="L589">    			String baUrl = ba.getScmUrl();</span>
+<span class="fc" id="L590">    			String baBranch = ba.getScmBranch();</span>
+    			
+<span class="pc bpc" id="L592" title="2 of 4 branches missed.">    			if (HygieiaUtils.smartUrlEquals(urlNoNull, baUrl) &amp;&amp; ObjectUtils.equals(branchNoNull, baBranch)) {</span>
+<span class="fc" id="L593">    				artifacts.add(ba);</span>
+<span class="fc" id="L594">    				added = true;</span>
+<span class="fc" id="L595">    				break;</span>
+    			}
+<span class="nc" id="L597">    		}</span>
+    		
+<span class="pc bpc" id="L599" title="3 of 4 branches missed.">    		if (logger.isDebugEnabled() &amp;&amp; !added) {</span>
+<span class="nc" id="L600">    			StringBuilder sb = new StringBuilder();</span>
+<span class="nc" id="L601">    			sb.append(&quot;Ignoring artifact identifier &quot; + id.getGroup() + &quot;:&quot; + id.getName() + &quot;:&quot; + id.getVersion()</span>
+    			+ &quot; since it does not correspond to any artifacts that use the component's repository\n&quot;);
+<span class="nc" id="L603">    			sb.append(&quot;Component repo: (url: &quot; + url + &quot; branch: &quot; + branch + &quot;)\n&quot;);</span>
+<span class="nc" id="L604">    			sb.append(&quot;Artifacts:\n&quot;);</span>
+    			
+<span class="nc" id="L606">    			boolean hasPrinted = false;</span>
+<span class="nc bnc" id="L607" title="All 2 branches missed.">    			for (BinaryArtifact ba : e.getValue()) {</span>
+<span class="nc" id="L608">    				sb.append(&quot;    &quot; + ba.getArtifactGroupId() + &quot;:&quot; + ba.getArtifactName() + &quot;:&quot; + ba.getArtifactVersion()</span>
+<span class="nc" id="L609">    					+ &quot; &quot; + &quot;(url: &quot; + ba.getScmUrl() + &quot; branch: &quot; + ba.getScmBranch() + &quot;)\n&quot;);</span>
+<span class="nc" id="L610">    				hasPrinted = true;</span>
+<span class="nc" id="L611">    			}</span>
+    			
+<span class="nc bnc" id="L613" title="All 2 branches missed.">    			if (!hasPrinted) {</span>
+<span class="nc" id="L614">    				sb.append(&quot;(None)\n&quot;);</span>
+    			}
+    			
+<span class="nc" id="L617">    			logger.debug(sb.toString());</span>
+    		}
+    		
+<span class="pc bpc" id="L620" title="1 of 2 branches missed.">    		if (!artifacts.isEmpty()) {</span>
+<span class="fc" id="L621">        		rt.put(e.getKey(), artifacts);</span>
+    		}
+<span class="fc" id="L623">    	}</span>
+    	
+<span class="fc" id="L625">    	return rt;</span>
+    }
+	
+    /**
+     * Determine the SCM url and branch that is set for the component. Information
+     * is gathered with the assumption that the data is stored in options.url and 
+     * options.branch.
+     * 
+     * @param component
+     * @return			the {@link RepoBranch} that the component uses
+     */
+	protected RepoBranch getComponentRepoBranch(Component component) {
+<span class="fc" id="L637">        CollectorItem item = component.getFirstCollectorItemForType(CollectorType.SCM);</span>
+<span class="pc bpc" id="L638" title="1 of 2 branches missed.">        if (item == null) {</span>
+<span class="nc" id="L639">        	logger.warn(&quot;Error encountered building pipeline: could not find scm collector item for dashboard.&quot;);</span>
+<span class="nc" id="L640">        	return new RepoBranch(&quot;&quot;, &quot;&quot;, RepoType.Unknown);</span>
+        }
+        
+        // TODO find a better way?
+<span class="fc" id="L644">        String url = (String)item.getOptions().get(&quot;url&quot;);</span>
+<span class="fc" id="L645">        String branch = (String)item.getOptions().get(&quot;branch&quot;);</span>
+        
+<span class="fc" id="L647">        return new RepoBranch(url, branch, RepoType.Unknown);</span>
+	}
+	
+	private List&lt;Commit&gt; getCommits(Component component, Long startDate, Long endDate) {
+		List&lt;Commit&gt; rt;
+		
+<span class="fc" id="L653">		CommitRequest request = new CommitRequest();</span>
+<span class="fc" id="L654">		request.setComponentId(component.getId());</span>
+<span class="fc" id="L655">		request.setCommitDateBegins(startDate);</span>
+<span class="fc" id="L656">		request.setCommitDateEnds(endDate);</span>
+		
+<span class="fc" id="L658">		DataResponse&lt;Iterable&lt;Commit&gt;&gt; response = commitService.search(request);</span>
+		
+<span class="pc bpc" id="L660" title="1 of 2 branches missed.">		rt = response.getResult() != null? Lists.newArrayList(response.getResult()) : Collections.emptyList();</span>
+		
+<span class="fc" id="L662">		return rt;</span>
+	}
+
+	private List&lt;Build&gt; getBuilds(Component component, Long startDate, Long endDate) {
+		List&lt;Build&gt; rt;
+		
+<span class="fc" id="L668">		BuildSearchRequest request = new BuildSearchRequest();</span>
+<span class="fc" id="L669">		request.setComponentId(component.getId());</span>
+<span class="fc" id="L670">		request.setStartDateBegins(startDate);</span>
+<span class="fc" id="L671">		request.setStartDateEnds(endDate);</span>
+		
+<span class="fc" id="L673">		DataResponse&lt;Iterable&lt;Build&gt;&gt; response = buildService.search(request);</span>
+		
+<span class="pc bpc" id="L675" title="1 of 2 branches missed.">		rt = response.getResult() != null? Lists.newArrayList(response.getResult()) : Collections.emptyList();</span>
+		
+<span class="fc" id="L677">		return rt;</span>
+	}
+	
+	private List&lt;Environment&gt; getEnvironments(Component component) {
+<span class="fc" id="L681">		DataResponse&lt;List&lt;Environment&gt;&gt; response = deployService.getDeployStatus(component.getId());</span>
+		
+<span class="pc bpc" id="L683" title="1 of 2 branches missed.">		return response.getResult() != null? response.getResult() : Collections.emptyList();</span>
+	}
+	
+	// this is here for future expansion
+	private Map&lt;Environment, Collection&lt;ArtifactIdentifier&gt;&gt; getArtifactIdentifiers(List&lt;Environment&gt; environments) {
+<span class="fc" id="L688">		Map&lt;Environment, Collection&lt;ArtifactIdentifier&gt;&gt; rt = new HashMap&lt;&gt;();</span>
+		
+<span class="fc bfc" id="L690" title="All 2 branches covered.">		for (Environment env : environments) {</span>
+<span class="fc" id="L691">			Set&lt;ArtifactIdentifier&gt; ids = new HashSet&lt;&gt;();</span>
+			
+<span class="pc bpc" id="L693" title="1 of 2 branches missed.">			if (env.getUnits() != null) {</span>
+<span class="fc bfc" id="L694" title="All 2 branches covered.">				for (DeployableUnit du : env.getUnits()) {</span>
+<span class="fc" id="L695">			        String artifactName = du.getName();</span>
+<span class="fc" id="L696">			        String artifactExtension = null;</span>
+<span class="fc" id="L697">			        int dotIdx = artifactName.lastIndexOf('.');</span>
+<span class="pc bpc" id="L698" title="1 of 2 branches missed.">			        if (dotIdx &gt; 0) {</span>
+			        	// If idx is 0 starts with a dot... in which case not an extension
+			        	
+<span class="nc" id="L701">			        	artifactName = artifactName.substring(0, dotIdx);</span>
+<span class="nc" id="L702">			        	artifactExtension = artifactName.substring(dotIdx);</span>
+			        }
+					
+<span class="fc" id="L705">					ArtifactIdentifier id = new ArtifactIdentifier(null, artifactName, du.getVersion(), null, artifactExtension);</span>
+					
+<span class="fc" id="L707">					ids.add(id);</span>
+<span class="fc" id="L708">				}</span>
+			}
+			
+<span class="fc" id="L711">			rt.put(env, new ArrayList&lt;&gt;(ids));</span>
+<span class="fc" id="L712">		}</span>
+		
+<span class="fc" id="L714">		return rt;</span>
+	}
+	
+	private Map&lt;ArtifactIdentifier, Collection&lt;BinaryArtifact&gt;&gt; getBinaryArtifacts(List&lt;ArtifactIdentifier&gt; ids) {
+<span class="fc" id="L718">		Map&lt;ArtifactIdentifier, Collection&lt;BinaryArtifact&gt;&gt; rt = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L719">		Set&lt;ArtifactIdentifier&gt; idsDedup = new HashSet&lt;&gt;(ids);</span>
+		
+<span class="fc bfc" id="L721" title="All 2 branches covered.">		for (ArtifactIdentifier id : idsDedup) {</span>
+<span class="fc" id="L722">			List&lt;BinaryArtifact&gt; artifacts = getBinaryArtifacts(id.getGroup(), id.getName(), id.getVersion(), id.getExtension());</span>
+			
+<span class="fc" id="L724">			rt.put(id, artifacts);</span>
+<span class="fc" id="L725">		}</span>
+		
+<span class="fc" id="L727">		return rt;</span>
+	}
+	
+	private List&lt;BinaryArtifact&gt; getBinaryArtifacts(String group, String name, String version, String ext) {
+		List&lt;BinaryArtifact&gt; rt;
+		
+<span class="fc" id="L733">		BinaryArtifactSearchRequest request = new BinaryArtifactSearchRequest();</span>
+<span class="pc bpc" id="L734" title="3 of 4 branches missed.">		request.setArtifactGroup(group != null &amp;&amp; group.length() &gt; 0? group : null);</span>
+<span class="pc bpc" id="L735" title="2 of 4 branches missed.">		request.setArtifactName(name != null &amp;&amp; name.length() &gt; 0? name : null);</span>
+<span class="pc bpc" id="L736" title="2 of 4 branches missed.">		request.setArtifactVersion(version != null &amp;&amp; version.length() &gt; 0? version : null);</span>
+<span class="pc bpc" id="L737" title="1 of 2 branches missed.">		request.setArtifactExtension(ext != null? ext : null); // empty string extension is valid</span>
+		
+<span class="fc" id="L739">		DataResponse&lt;Iterable&lt;BinaryArtifact&gt;&gt; response = binaryArtifactService.search(request);</span>
+		
+<span class="pc bpc" id="L741" title="1 of 2 branches missed.">		rt = response.getResult() != null? Lists.newArrayList(response.getResult()) : Collections.emptyList();</span>
+		
+<span class="fc" id="L743">		return rt;</span>
+	}
+	
+	private Multimap&lt;ObjectId, Commit&gt; buildBuildToCommitsMap(List&lt;Build&gt; builds, List&lt;Commit&gt; commits) {
+<span class="fc" id="L747">		Multimap&lt;ObjectId, Commit&gt; rt = HashMultimap.create();</span>
+		
+<span class="fc" id="L749">		Map&lt;String, Commit&gt; revisionNumberToCommitMap = buildRevisionNumberToCommitMap(commits);</span>
+		
+<span class="fc bfc" id="L751" title="All 2 branches covered.">		for (Build build : builds) {</span>
+<span class="fc bfc" id="L752" title="All 2 branches covered.">			for (SCM scm : build.getSourceChangeSet()) {</span>
+<span class="fc" id="L753">				String revisionNumber = scm.getScmRevisionNumber();</span>
+				
+<span class="fc" id="L755">				Commit correspondingCommit = revisionNumberToCommitMap.get(revisionNumber);</span>
+<span class="pc bpc" id="L756" title="1 of 2 branches missed.">				if (correspondingCommit != null) {</span>
+<span class="pc bpc" id="L757" title="2 of 4 branches missed.">					assert build.getId() != null;</span>
+<span class="fc" id="L758">					rt.put(build.getId(), correspondingCommit);</span>
+				}
+<span class="fc" id="L760">			}</span>
+<span class="fc" id="L761">		}</span>
+		
+<span class="fc" id="L763">		return rt;</span>
+	}
+	
+	// TODO needs to account for scm url and branch
+	private Map&lt;String, Commit&gt; buildRevisionNumberToCommitMap(List&lt;Commit&gt; commits) {
+<span class="fc" id="L768">		Map&lt;String, Commit&gt; rt = new HashMap&lt;&gt;();</span>
+		
+<span class="fc bfc" id="L770" title="All 2 branches covered.">		for (Commit commit : commits) {</span>
+<span class="fc" id="L771">			String revisionNumber = commit.getScmRevisionNumber();</span>
+			
+<span class="pc bpc" id="L773" title="1 of 2 branches missed.">			boolean alreadyExists = rt.put(revisionNumber, commit) != null;</span>
+			
+<span class="pc bpc" id="L775" title="1 of 2 branches missed.">			if (alreadyExists) {</span>
+<span class="nc" id="L776">				logger.warn(&quot;Error encountered building pipeline: multiple commits exist for revision number &quot; + revisionNumber);</span>
+			}
+<span class="fc" id="L778">		}</span>
+		
+<span class="fc" id="L780">		return rt;</span>
+	}
+	
+	/**
+	 * Calculates the commit graph.
+	 * &lt;p&gt;
+	 * Builds a commit graph using information within the list of commits. For GIT this is
+	 * build using {@link Commit#getScmParentRevisionNumbers()}. For SCM this is a sequential
+	 * key:value map of all previous commits.
+	 * 
+	 * @param commits
+	 * @return			a map of revision number : parent revision number(s). This is plural in the
+	 * 					case of merge commits.
+	 */
+	// We assume each commit belongs to the same repo + branch
+	private Map&lt;String, Collection&lt;String&gt;&gt; buildCommitGraph(List&lt;Commit&gt; commits) {
+		// multimap api doesn't quite fit what we want to do here
+<span class="fc" id="L797">		Map&lt;String, Collection&lt;String&gt;&gt; rt = new HashMap&lt;&gt;();</span>
+		
+		// TODO build graph for svn
+		
+<span class="fc bfc" id="L801" title="All 2 branches covered.">		for (Commit commit : commits) {</span>
+<span class="fc" id="L802">			String revisionNumber = commit.getScmRevisionNumber();</span>
+<span class="fc" id="L803">			boolean alreadyExists = false;</span>
+			
+<span class="fc" id="L805">			List&lt;String&gt; parentRevisionNumbers = commit.getScmParentRevisionNumbers();</span>
+<span class="pc bpc" id="L806" title="1 of 2 branches missed.">			if (parentRevisionNumbers == null) {</span>
+<span class="nc bnc" id="L807" title="All 2 branches missed.">				alreadyExists = rt.put(revisionNumber, new ArrayList&lt;&gt;()) != null;</span>
+			} else {
+<span class="pc bpc" id="L809" title="1 of 2 branches missed.">				alreadyExists = rt.put(revisionNumber, parentRevisionNumbers) != null;</span>
+			}
+			
+<span class="pc bpc" id="L812" title="1 of 2 branches missed.">			if (alreadyExists) {</span>
+<span class="nc" id="L813">				logger.warn(&quot;Error encountered building pipeline: multiple commits exist for revision number &quot; + revisionNumber);</span>
+			}
+<span class="fc" id="L815">		}</span>
+		
+<span class="fc" id="L817">		return rt;</span>
+	}
+	
+	/**
+	 * Given a commit graph determines all predecessor commits that came before the specified revision number.
+	 * 
+	 * @param commitGraph
+	 * @param headRevisionNumber
+	 * @return						the commit history starting at &lt;b&gt;headRevisionNumber&lt;/b&gt;
+	 */
+	// TODO need to handle SVN
+	protected List&lt;String&gt; getCommitHistory(Map&lt;String, Collection&lt;String&gt;&gt; commitGraph, String headRevisionNumber) {
+<span class="fc" id="L829">		List&lt;String&gt; rt = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L830">		Set&lt;String&gt; seenRevisions = new HashSet&lt;&gt;();</span>
+		
+<span class="fc" id="L832">		seenRevisions.add(headRevisionNumber);</span>
+<span class="fc" id="L833">		rt.add(headRevisionNumber);</span>
+<span class="fc" id="L834">		getCommitHistory(rt, seenRevisions, commitGraph, headRevisionNumber);</span>
+		
+<span class="fc" id="L836">		return rt;</span>
+	}
+	
+	private void getCommitHistory(List&lt;String&gt; rt, Set&lt;String&gt; seenRevisions, Map&lt;String, Collection&lt;String&gt;&gt; commitGraph, String revisionNumber) {
+<span class="pc bpc" id="L840" title="1 of 2 branches missed.">		if (revisionNumber == null) {</span>
+<span class="nc" id="L841">			return;</span>
+		}
+		
+<span class="pc bpc" id="L844" title="1 of 4 branches missed.">		if (commitGraph.get(revisionNumber) == null || commitGraph.get(revisionNumber).isEmpty()) {</span>
+<span class="fc" id="L845">			return;</span>
+		}
+		
+<span class="fc bfc" id="L848" title="All 2 branches covered.">		for (String rn : commitGraph.get(revisionNumber)) {</span>
+<span class="fc bfc" id="L849" title="All 2 branches covered.">			if (seenRevisions.add(rn)) {</span>
+<span class="fc" id="L850">				rt.add(rn);</span>
+<span class="fc" id="L851">				getCommitHistory(rt, seenRevisions, commitGraph, rn);</span>
+			}
+<span class="fc" id="L853">		}</span>
+<span class="fc" id="L854">	}</span>
+	
+	private Long getMinStart() {
+<span class="fc" id="L857">        Calendar cal = new GregorianCalendar();</span>
+<span class="fc" id="L858">        cal.setTime(new Date());</span>
+<span class="fc" id="L859">        cal.add(Calendar.DAY_OF_MONTH, PROD_COMMIT_DATE_RANGE_DEFAULT);</span>
+<span class="fc" id="L860">        return cal.getTime().getTime();</span>
+	}
+	
+    private boolean isBetween(Long commitTimestamp, Long lowerBound, Long upperBound){
+<span class="nc bnc" id="L864" title="All 4 branches missed.">        return (lowerBound &lt;= commitTimestamp &amp;&amp; commitTimestamp &lt;= upperBound);</span>
+    }
+
+    /**
+     * For a given commit, will traverse the pipeline and find the time it entered in each stage of the pipeline
+     * @param commit
+     * @param dashboard
+     * @param pipeline
+     * @return
+     */
+    private PipelineResponseCommit applyStageTimestamps(PipelineResponseCommit commit, Dashboard dashboard, Pipeline pipeline,List&lt;PipelineStage&gt; pipelineStageList) throws HygieiaException {
+<span class="fc" id="L875">        PipelineResponseCommit returnCommit = new PipelineResponseCommit(commit);</span>
+
+<span class="fc bfc" id="L877" title="All 2 branches covered.">        for(PipelineStage systemStage : pipelineStageList) {</span>
+            //get commits for a given stage
+<span class="fc" id="L879">            Map&lt;String, PipelineCommit&gt; commitMap = findCommitsForStage(dashboard, pipeline, systemStage);</span>
+
+            //if this commit doesnt have a processed timestamp for this stage, add one
+<span class="fc" id="L882">            PipelineCommit pipelineCommit = commitMap.get(commit.getScmRevisionNumber());</span>
+<span class="pc bpc" id="L883" title="1 of 4 branches missed.">            if(pipelineCommit != null &amp;&amp; !returnCommit.getProcessedTimestamps().containsKey(systemStage.getName())){</span>
+<span class="fc" id="L884">                Long timestamp = pipelineCommit.getTimestamp();</span>
+<span class="fc" id="L885">                returnCommit.addNewPipelineProcessedTimestamp(systemStage, timestamp);</span>
+            }
+<span class="fc" id="L887">        }</span>
+<span class="fc" id="L888">        return returnCommit;</span>
+    }
+
+    /**
+     * Gets all commits for a given pipeline stage, taking into account the mappings for environment stages
+     * @param dashboard
+     * @param pipeline
+     * @param stageType
+     * @return
+     */
+    private Map&lt;String, PipelineCommit&gt; findCommitsForStage(Dashboard dashboard, Pipeline pipeline, PipelineStage stage) throws HygieiaException {
+<span class="fc" id="L899">    	 Map&lt;String, PipelineCommit&gt; commitMap = new HashMap&lt;&gt;();</span>
+    	
+    	// The environment name including the pseudo environments &quot;Build&quot; and &quot;Commit&quot;
+<span class="fc" id="L902">    	String psuedoEnvironmentName = </span>
+<span class="fc bfc" id="L903" title="All 4 branches covered.">    			PipelineStage.COMMIT.equals(stage) || PipelineStage.BUILD.equals(stage)? stage.getName() : </span>
+<span class="fc" id="L904">    			PipelineUtils.getStageToEnvironmentNameMap(dashboard).get(stage);</span>
+    	
+<span class="pc bpc" id="L906" title="1 of 2 branches missed.">        if(psuedoEnvironmentName != null){</span>
+<span class="fc" id="L907">            commitMap = pipeline.getCommitsByEnvironmentName(psuedoEnvironmentName);</span>
+        }
+<span class="fc" id="L909">        return commitMap;</span>
+    }
+
+    /**
+     * get the commits for a given stage by finding which commits havent passed to a later stage
+     * @param dashboard dashboard
+     * @param pipeline pipeline for that dashboard
+     * @param stage current stage
+     * @return a list of all commits as pipeline response commits that havent moved past the current stage
+     */
+    public List&lt;PipelineResponseCommit&gt; findNotPropagatedCommits(Dashboard dashboard, Pipeline pipeline, PipelineStage stage,List&lt;PipelineStage&gt; pipelineStageList) throws HygieiaException {
+
+<span class="fc" id="L921">        Map&lt;String, PipelineCommit&gt; startingStage = findCommitsForStage(dashboard, pipeline, stage);</span>
+<span class="fc" id="L922">        List&lt;PipelineResponseCommit&gt; notPropagatedCommits = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L923" title="All 2 branches covered.">        for(Map.Entry&lt;String,PipelineCommit&gt; entry : startingStage.entrySet()){</span>
+<span class="fc" id="L924">                PipelineResponseCommit commit = applyStageTimestamps(new PipelineResponseCommit((PipelineCommit)entry.getValue()), dashboard, pipeline,pipelineStageList);</span>
+<span class="fc" id="L925">                notPropagatedCommits.add(commit);</span>
+<span class="fc" id="L926">        }</span>
+<span class="fc" id="L927">        return notPropagatedCommits;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

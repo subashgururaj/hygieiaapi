@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AutoDiscoveryServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.service</a> &gt; <span class="el_source">AutoDiscoveryServiceImpl.java</span></div><h1>AutoDiscoveryServiceImpl.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.service;
+
+import com.capitalone.dashboard.misc.HygieiaException;
+import com.capitalone.dashboard.model.AutoDiscoveredEntry;
+import com.capitalone.dashboard.model.AutoDiscovery;
+import com.capitalone.dashboard.model.AutoDiscoveryRemoteRequest;
+import com.capitalone.dashboard.model.Collector;
+import com.capitalone.dashboard.model.CollectorType;
+import com.capitalone.dashboard.model.FeatureFlag;
+import com.capitalone.dashboard.repository.AutoDiscoveryRepository;
+import com.capitalone.dashboard.repository.CollectorRepository;
+import com.capitalone.dashboard.repository.FeatureFlagRepository;
+import com.capitalone.dashboard.util.FeatureFlagsEnum;
+import com.capitalone.dashboard.util.HygieiaUtils;
+import com.google.common.collect.Iterables;
+import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import javax.validation.constraints.NotNull;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
+
+@Service
+public class AutoDiscoveryServiceImpl implements AutoDiscoveryService {
+<span class="fc" id="L32">    private static final Log LOG = LogFactory.getLog(AutoDiscoveryServiceImpl.class);</span>
+    private final AutoDiscoveryRepository autoDiscoveryRepository;
+    private final CollectorRepository collectorRepository;
+    private final FeatureFlagRepository featureFlagRepository;
+
+    @Autowired
+<span class="fc" id="L38">    public AutoDiscoveryServiceImpl(AutoDiscoveryRepository autoDiscoveryRepository,CollectorRepository collectorRepository, FeatureFlagRepository featureFlagRepository) {</span>
+<span class="fc" id="L39">        this.autoDiscoveryRepository = autoDiscoveryRepository;</span>
+<span class="fc" id="L40">        this.collectorRepository = collectorRepository;</span>
+<span class="fc" id="L41">        this.featureFlagRepository = featureFlagRepository;</span>
+<span class="fc" id="L42">    }</span>
+
+    @Override
+    public AutoDiscovery save(AutoDiscoveryRemoteRequest request) throws HygieiaException {
+<span class="fc" id="L46">        String autoDiscoveryId = request.getAutoDiscoveryId();</span>
+<span class="pc bpc" id="L47" title="1 of 4 branches missed.">        if (autoDiscoveryId==null || !ObjectId.isValid(autoDiscoveryId)) {</span>
+<span class="fc" id="L48">            throw new HygieiaException(&quot;Invalid Auto Discovery Object ID: [&quot; + autoDiscoveryId + &quot;] received.&quot;, HygieiaException.BAD_DATA);</span>
+        }
+
+<span class="fc" id="L51">        ObjectId id = new ObjectId(autoDiscoveryId);</span>
+        AutoDiscovery autoDiscovery;
+<span class="fc" id="L53">        FeatureFlag featureFlag = featureFlagRepository.findByName(FeatureFlagsEnum.auto_discover.toString());</span>
+
+<span class="fc bfc" id="L55" title="All 2 branches covered.">        if (autoDiscoveryRepository.exists(id)) {</span>
+            // update existing AutoDiscovery record with the status from request
+<span class="fc" id="L57">            autoDiscovery = autoDiscoveryRepository.findOne(id);</span>
+<span class="fc" id="L58">            updateAutoDiscovery(autoDiscovery, request, featureFlag);</span>
+<span class="fc" id="L59">            autoDiscovery.setModifiedTimestamp(System.currentTimeMillis());</span>
+        } else {
+            // create new AutoDiscovery record
+<span class="fc" id="L62">            autoDiscovery = requestToAutoiscovery(request, featureFlag);</span>
+<span class="fc" id="L63">            long currTime = System.currentTimeMillis();</span>
+<span class="fc" id="L64">            autoDiscovery.setCreatedTimestamp(currTime);</span>
+<span class="fc" id="L65">            autoDiscovery.setModifiedTimestamp(currTime);</span>
+        }
+
+<span class="fc" id="L68">        autoDiscoveryRepository.save(autoDiscovery);</span>
+<span class="fc" id="L69">        return autoDiscovery;</span>
+    }
+
+    /**
+     * Creates a AutoDiscovery object from the request.
+     * @param request
+     * @return AutoDiscovery
+     */
+    private AutoDiscovery requestToAutoiscovery(AutoDiscoveryRemoteRequest request, FeatureFlag featureFlag) {
+
+<span class="fc" id="L79">        cleanAutoDiscoveryRequestByFeatureFlag(request, featureFlag);</span>
+<span class="fc" id="L80">        removeDuplicatesNull(request);</span>
+<span class="fc" id="L81">        return new AutoDiscovery(request.getMetaData(), request.getCodeRepoEntries(), request.getBuildEntries(), request.getSecurityScanEntries(),</span>
+<span class="fc" id="L82">                request.getDeploymentEntries(), request.getLibraryScanEntries(), request.getFunctionalTestEntries(), request.getArtifactEntries(),</span>
+<span class="fc" id="L83">                request.getStaticCodeEntries(), request.getFeatureEntries(),request.getPerformanceTestEntries());</span>
+    }
+
+
+    /**
+     * Update the AutoDiscovery Entries' status from the request.
+     * @param autoDiscovery
+     * @param request
+     */
+    private void updateAutoDiscovery(AutoDiscovery autoDiscovery, AutoDiscoveryRemoteRequest request, FeatureFlag featureFlag) {
+
+<span class="fc" id="L94">        updateEntryStatus(request.getCodeRepoEntries(), autoDiscovery.getCodeRepoEntries());</span>
+<span class="fc" id="L95">        updateEntryStatus(request.getBuildEntries(), autoDiscovery.getBuildEntries());</span>
+<span class="fc" id="L96">        updateEntryStatus(request.getSecurityScanEntries(), autoDiscovery.getSecurityScanEntries());</span>
+<span class="fc" id="L97">        updateEntryStatus(request.getDeploymentEntries(), autoDiscovery.getDeploymentEntries());</span>
+<span class="fc" id="L98">        updateEntryStatus(request.getLibraryScanEntries(), autoDiscovery.getLibraryScanEntries());</span>
+<span class="fc" id="L99">        updateEntryStatus(request.getFunctionalTestEntries(), autoDiscovery.getFunctionalTestEntries());</span>
+<span class="fc" id="L100">        updateEntryStatus(request.getArtifactEntries(), autoDiscovery.getArtifactEntries());</span>
+<span class="fc" id="L101">        updateEntryStatus(request.getStaticCodeEntries(), autoDiscovery.getStaticCodeEntries());</span>
+<span class="fc" id="L102">        updateEntryStatus(request.getFeatureEntries(), autoDiscovery.getFeatureEntries());</span>
+<span class="fc" id="L103">        removeDuplicatesNull(autoDiscovery);</span>
+<span class="fc" id="L104">        removeEntriesByFeatureFlag(autoDiscovery, featureFlag);</span>
+<span class="fc" id="L105">    }</span>
+
+    private void removeEntriesByFeatureFlag(@NotNull AutoDiscovery autoDiscovery, FeatureFlag featureFlag) {
+<span class="pc bpc" id="L108" title="1 of 2 branches missed.">        if(!HygieiaUtils.allowAutoDiscover(featureFlag, CollectorType.SCM)) autoDiscovery.setCodeRepoEntries(new ArrayList&lt;&gt;());</span>
+<span class="pc bpc" id="L109" title="1 of 2 branches missed.">        if(!HygieiaUtils.allowAutoDiscover(featureFlag, CollectorType.Build)) autoDiscovery.setBuildEntries(new ArrayList&lt;&gt;());</span>
+<span class="pc bpc" id="L110" title="1 of 2 branches missed.">        if(!HygieiaUtils.allowAutoDiscover(featureFlag, CollectorType.StaticSecurityScan)) autoDiscovery.setSecurityScanEntries(new ArrayList&lt;&gt;());</span>
+<span class="pc bpc" id="L111" title="1 of 2 branches missed.">        if(!HygieiaUtils.allowAutoDiscover(featureFlag, CollectorType.Deployment)) autoDiscovery.setDeploymentEntries(new ArrayList&lt;&gt;());</span>
+<span class="pc bpc" id="L112" title="1 of 2 branches missed.">        if(!HygieiaUtils.allowAutoDiscover(featureFlag, CollectorType.LibraryPolicy)) autoDiscovery.setLibraryScanEntries(new ArrayList&lt;&gt;());</span>
+<span class="pc bpc" id="L113" title="1 of 2 branches missed.">        if(!HygieiaUtils.allowAutoDiscover(featureFlag, CollectorType.Test)) autoDiscovery.setFunctionalTestEntries(new ArrayList&lt;&gt;());</span>
+<span class="pc bpc" id="L114" title="1 of 2 branches missed.">        if(!HygieiaUtils.allowAutoDiscover(featureFlag, CollectorType.Artifact)) autoDiscovery.setArtifactEntries(new ArrayList&lt;&gt;());</span>
+<span class="pc bpc" id="L115" title="1 of 2 branches missed.">        if(!HygieiaUtils.allowAutoDiscover(featureFlag, CollectorType.CodeQuality)) autoDiscovery.setStaticCodeEntries(new ArrayList&lt;&gt;());</span>
+<span class="pc bpc" id="L116" title="1 of 2 branches missed.">        if(!HygieiaUtils.allowAutoDiscover(featureFlag, CollectorType.AgileTool)) autoDiscovery.setFeatureEntries(new ArrayList&lt;&gt;());</span>
+<span class="fc" id="L117">    }</span>
+
+    private void cleanAutoDiscoveryRequestByFeatureFlag(@NotNull AutoDiscoveryRemoteRequest request, FeatureFlag featureFlag){
+<span class="pc bpc" id="L120" title="1 of 2 branches missed.">        if(!HygieiaUtils.allowAutoDiscover(featureFlag, CollectorType.SCM)) request.setCodeRepoEntries(new ArrayList&lt;&gt;());</span>
+<span class="pc bpc" id="L121" title="1 of 2 branches missed.">        if(!HygieiaUtils.allowAutoDiscover(featureFlag, CollectorType.Build)) request.setBuildEntries(new ArrayList&lt;&gt;());</span>
+<span class="pc bpc" id="L122" title="1 of 2 branches missed.">        if(!HygieiaUtils.allowAutoDiscover(featureFlag, CollectorType.StaticSecurityScan)) request.setSecurityScanEntries(new ArrayList&lt;&gt;());</span>
+<span class="pc bpc" id="L123" title="1 of 2 branches missed.">        if(!HygieiaUtils.allowAutoDiscover(featureFlag, CollectorType.Deployment)) request.setDeploymentEntries(new ArrayList&lt;&gt;());</span>
+<span class="pc bpc" id="L124" title="1 of 2 branches missed.">        if(!HygieiaUtils.allowAutoDiscover(featureFlag, CollectorType.LibraryPolicy)) request.setLibraryScanEntries(new ArrayList&lt;&gt;());</span>
+<span class="pc bpc" id="L125" title="1 of 2 branches missed.">        if(!HygieiaUtils.allowAutoDiscover(featureFlag, CollectorType.Test)) request.setFunctionalTestEntries(new ArrayList&lt;&gt;());</span>
+<span class="pc bpc" id="L126" title="1 of 2 branches missed.">        if(!HygieiaUtils.allowAutoDiscover(featureFlag, CollectorType.Artifact)) request.setArtifactEntries(new ArrayList&lt;&gt;());</span>
+<span class="pc bpc" id="L127" title="1 of 2 branches missed.">        if(!HygieiaUtils.allowAutoDiscover(featureFlag, CollectorType.CodeQuality)) request.setStaticCodeEntries(new ArrayList&lt;&gt;());</span>
+<span class="pc bpc" id="L128" title="1 of 2 branches missed.">        if(!HygieiaUtils.allowAutoDiscover(featureFlag, CollectorType.AgileTool)) request.setFeatureEntries(new ArrayList&lt;&gt;());</span>
+<span class="fc" id="L129">    }</span>
+
+    /**
+     * Update the AutoDiscovery Entries' status from source to target.
+     * @param source
+     * @param target
+     */
+    private void updateEntryStatus(List&lt;AutoDiscoveredEntry&gt; source, List&lt;AutoDiscoveredEntry&gt; target) {
+<span class="fc" id="L137">        boolean optionsMatched = true;</span>
+<span class="pc bpc" id="L138" title="1 of 2 branches missed.">        for (AutoDiscoveredEntry srcEntry : source) {</span>
+<span class="nc" id="L139">            String toolName = srcEntry.getToolName();</span>
+<span class="nc" id="L140">            Collector collector = collectorRepository.findByName(toolName);</span>
+<span class="nc" id="L141">            Map&lt;String, Object&gt; uniqueOptions = collector.getUniqueFields();</span>
+<span class="nc bnc" id="L142" title="All 2 branches missed.">            for (AutoDiscoveredEntry entry : target) {</span>
+<span class="nc bnc" id="L143" title="All 2 branches missed.">                for (String field : uniqueOptions.keySet()) {</span>
+                    try {
+<span class="nc bnc" id="L145" title="All 2 branches missed.">                        if (!((String) entry.getOptions().get(field)).equalsIgnoreCase((String) srcEntry.getOptions().get(field))) {</span>
+<span class="nc" id="L146">                            optionsMatched = false;</span>
+                        }
+<span class="nc" id="L148">                    } catch (Exception e) {</span>
+<span class="nc" id="L149">                        LOG.info(&quot;Caught exception in AutoDiscoveryServiceImpl.updateEntryStatus()-- invalid options for collectorItem.&quot; + e.getMessage());</span>
+<span class="nc" id="L150">                    }</span>
+<span class="nc" id="L151">                }</span>
+
+<span class="nc bnc" id="L153" title="All 2 branches missed.">                if (optionsMatched) {</span>
+<span class="nc" id="L154">                    entry.setStatus(srcEntry.getStatus());</span>
+                }
+<span class="nc" id="L156">            }</span>
+<span class="nc" id="L157">        }</span>
+<span class="fc" id="L158">    }</span>
+
+    /**
+     * Remove Nulls and Duplicates from {@link AutoDiscovery}
+     *
+     * @param autoDiscovery
+     */
+    private void removeDuplicatesNull(@NotNull AutoDiscovery autoDiscovery) {
+<span class="fc" id="L166">        autoDiscovery.setCodeRepoEntries(filterDuplicatesNull(autoDiscovery.getCodeRepoEntries()));</span>
+<span class="fc" id="L167">        autoDiscovery.setBuildEntries(filterDuplicatesNull(autoDiscovery.getBuildEntries()));</span>
+<span class="fc" id="L168">        autoDiscovery.setSecurityScanEntries(filterDuplicatesNull(autoDiscovery.getSecurityScanEntries()));</span>
+<span class="fc" id="L169">        autoDiscovery.setDeploymentEntries(filterDuplicatesNull(autoDiscovery.getDeploymentEntries()));</span>
+<span class="fc" id="L170">        autoDiscovery.setLibraryScanEntries(filterDuplicatesNull(autoDiscovery.getLibraryScanEntries()));</span>
+<span class="fc" id="L171">        autoDiscovery.setFunctionalTestEntries(filterDuplicatesNull(autoDiscovery.getFunctionalTestEntries()));</span>
+<span class="fc" id="L172">        autoDiscovery.setArtifactEntries(filterDuplicatesNull(autoDiscovery.getArtifactEntries()));</span>
+<span class="fc" id="L173">        autoDiscovery.setStaticCodeEntries(filterDuplicatesNull(autoDiscovery.getStaticCodeEntries()));</span>
+<span class="fc" id="L174">        autoDiscovery.setFeatureEntries(filterDuplicatesNull(autoDiscovery.getFeatureEntries()));</span>
+<span class="fc" id="L175">    }</span>
+
+    /**
+     * Remove nulls and Duplicates from {@link AutoDiscoveryRemoteRequest}
+     *
+     * @param request
+     */
+    private void removeDuplicatesNull(@NotNull AutoDiscoveryRemoteRequest request) {
+<span class="fc" id="L183">        request.setCodeRepoEntries(filterDuplicatesNull(request.getCodeRepoEntries()));</span>
+<span class="fc" id="L184">        request.setBuildEntries(filterDuplicatesNull(request.getBuildEntries()));</span>
+<span class="fc" id="L185">        request.setSecurityScanEntries(filterDuplicatesNull(request.getSecurityScanEntries()));</span>
+<span class="fc" id="L186">        request.setDeploymentEntries(filterDuplicatesNull(request.getDeploymentEntries()));</span>
+<span class="fc" id="L187">        request.setLibraryScanEntries(filterDuplicatesNull(request.getLibraryScanEntries()));</span>
+<span class="fc" id="L188">        request.setFunctionalTestEntries(filterDuplicatesNull(request.getFunctionalTestEntries()));</span>
+<span class="fc" id="L189">        request.setArtifactEntries(filterDuplicatesNull(request.getArtifactEntries()));</span>
+<span class="fc" id="L190">        request.setStaticCodeEntries(filterDuplicatesNull(request.getStaticCodeEntries()));</span>
+<span class="fc" id="L191">        request.setFeatureEntries(filterDuplicatesNull(request.getFeatureEntries()));</span>
+<span class="fc" id="L192">    }</span>
+
+    /**
+     * Filter nulls and duplicates from List of {@link AutoDiscoveredEntry}
+     *
+     * @param entry
+     */
+    private List&lt;AutoDiscoveredEntry&gt; filterDuplicatesNull( List&lt;AutoDiscoveredEntry&gt; entry) {
+<span class="pc bpc" id="L200" title="1 of 2 branches missed.">        if(CollectionUtils.isEmpty(entry)) return entry;</span>
+<span class="nc" id="L201">        Iterables.removeIf(entry, Objects::isNull);</span>
+<span class="nc" id="L202">        return entry.stream().distinct().collect(Collectors.toList());</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

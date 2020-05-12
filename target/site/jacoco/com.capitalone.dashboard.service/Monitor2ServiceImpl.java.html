@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Monitor2ServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.service</a> &gt; <span class="el_source">Monitor2ServiceImpl.java</span></div><h1>Monitor2ServiceImpl.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.service;
+
+import com.capitalone.dashboard.model.Monitor2;
+import com.capitalone.dashboard.model.Dashboard;
+import com.capitalone.dashboard.repository.Monitor2Repository;
+import com.capitalone.dashboard.repository.DashboardRepository;
+import com.capitalone.dashboard.request.Monitor2DataCreateRequest;
+
+import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+// Hits the repositories for saving the data to mongo and retrieving it.
+@Service
+public class Monitor2ServiceImpl implements Monitor2Service {
+    private final Monitor2Repository monitor2Repository;
+    private final DashboardRepository dashboardRepository;
+
+    @Autowired
+<span class="fc" id="L22">    public Monitor2ServiceImpl(Monitor2Repository monitor2Repository, DashboardRepository dashboardRepository) {</span>
+<span class="fc" id="L23">        this.monitor2Repository = monitor2Repository;</span>
+<span class="fc" id="L24">        this.dashboardRepository = dashboardRepository;</span>
+<span class="fc" id="L25">    }</span>
+
+    @Override
+    public Iterable&lt;Monitor2&gt; all() {
+<span class="nc" id="L29">        return monitor2Repository.findAll();</span>
+    }
+
+    @Override
+    public List&lt;Monitor2&gt; dashboardMonitor2es(ObjectId dashboardId) {
+<span class="nc" id="L34">        return monitor2Repository.findByDashboardId(dashboardId);</span>
+    }
+
+    @Override
+    public Monitor2 get(ObjectId monitor2Id) {
+<span class="nc" id="L39">        return monitor2Repository.findOne(monitor2Id);</span>
+    }
+
+    @Override
+    public Monitor2 create(ObjectId dashboardId, Monitor2DataCreateRequest monitor2DataCreateRequest) {
+<span class="nc" id="L44">        Monitor2 monitor2 = new Monitor2();</span>
+<span class="nc" id="L45">        monitor2.setName(monitor2DataCreateRequest.getName());</span>
+<span class="nc" id="L46">        monitor2.setUrl(monitor2DataCreateRequest.getUrl());</span>
+<span class="nc" id="L47">        monitor2.setStatus(3);</span>
+<span class="nc" id="L48">        monitor2.setDashboardId(dashboardId);</span>
+<span class="nc" id="L49">        monitor2.setLastUpdated(System.currentTimeMillis());</span>
+
+<span class="nc" id="L51">        Dashboard dashboard = dashboardRepository.findOne(dashboardId);</span>
+<span class="nc" id="L52">        monitor2.setApplicationName(dashboard.getApplication().getName());</span>
+
+<span class="nc" id="L54">        return monitor2Repository.save(monitor2);</span>
+    }
+
+    @Override
+    public Monitor2 update(ObjectId dashboardId, Monitor2 monitor2) {
+<span class="nc bnc" id="L59" title="All 2 branches missed.">        if (!monitor2.getDashboardId().equals(dashboardId)) {</span>
+<span class="nc" id="L60">            throw new IllegalStateException(&quot;Not allowed to update this service from this dashboard!&quot;);</span>
+        }
+<span class="nc" id="L62">        monitor2.setLastUpdated(System.currentTimeMillis());</span>
+<span class="nc" id="L63">        return monitor2Repository.save(monitor2);</span>
+    }
+
+    @Override
+    public void delete(ObjectId dashboardId, ObjectId monitor2Id) {
+<span class="nc" id="L68">        Monitor2 service = get(monitor2Id);</span>
+<span class="nc bnc" id="L69" title="All 2 branches missed.">        if (!service.getDashboardId().equals(dashboardId)) {</span>
+<span class="nc" id="L70">            throw new IllegalStateException(&quot;Not allowed to delete this service from this dashboard!&quot;);</span>
+        }
+<span class="nc" id="L72">        monitor2Repository.delete(service);</span>
+<span class="nc" id="L73">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

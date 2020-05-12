@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CloudVolumeServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.service</a> &gt; <span class="el_source">CloudVolumeServiceImpl.java</span></div><h1>CloudVolumeServiceImpl.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.service;
+
+import com.capitalone.dashboard.config.collector.CloudConfig;
+import com.capitalone.dashboard.model.CloudVolumeStorage;
+import com.capitalone.dashboard.model.CollectorItem;
+import com.capitalone.dashboard.model.CollectorType;
+import com.capitalone.dashboard.model.Component;
+import com.capitalone.dashboard.model.NameValue;
+import com.capitalone.dashboard.repository.CloudVolumeRepository;
+import com.capitalone.dashboard.repository.ComponentRepository;
+import com.capitalone.dashboard.request.CloudVolumeCreateRequest;
+import com.capitalone.dashboard.request.CloudVolumeListRefreshRequest;
+import com.capitalone.dashboard.response.CloudVolumeAggregatedResponse;
+import com.capitalone.dashboard.util.HygieiaUtils;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
+
+import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+@Service
+public class CloudVolumeServiceImpl implements CloudVolumeService {
+<span class="fc" id="L31">    private static final Log LOGGER = LogFactory</span>
+<span class="fc" id="L32">            .getLog(CloudVolumeServiceImpl.class);</span>
+
+    private final CloudVolumeRepository cloudVolumeRepository;
+    private final ComponentRepository componentRepository;
+
+    @Autowired
+    public CloudVolumeServiceImpl(CloudVolumeRepository cloudVolumeRepository,
+<span class="fc" id="L39">                                  ComponentRepository cloudConfigRepository) {</span>
+<span class="fc" id="L40">        this.cloudVolumeRepository = cloudVolumeRepository;</span>
+<span class="fc" id="L41">        this.componentRepository = cloudConfigRepository;</span>
+<span class="fc" id="L42">    }</span>
+
+    public Collection&lt;CloudVolumeStorage&gt; getVolumeDetails(CollectorItem item) {
+<span class="nc" id="L45">        Collection&lt;CloudVolumeStorage&gt; volumes = new HashSet&lt;&gt;();</span>
+<span class="nc bnc" id="L46" title="All 4 branches missed.">        if ((item != null) &amp;&amp; (item instanceof CloudConfig)) {</span>
+<span class="nc" id="L47">            CloudConfig config = (CloudConfig) item;</span>
+<span class="nc" id="L48">            volumes.addAll(getVolumeDetailsByTags(config.getTags()));</span>
+        }
+<span class="nc" id="L50">        return volumes;</span>
+    }
+
+    private CollectorItem getCollectorItem(ObjectId componentId) {
+<span class="nc" id="L54">        Component component = componentRepository.findOne(componentId);</span>
+<span class="nc bnc" id="L55" title="All 2 branches missed.">        if (CollectionUtils.isEmpty(component.getCollectorItems())) return null;</span>
+<span class="nc" id="L56">        return component.getCollectorItems().get(CollectorType.Cloud).get(0);</span>
+    }
+
+    @Override
+    public Collection&lt;CloudVolumeStorage&gt; getVolumeDetailsByComponentId(String componentIdString) {
+<span class="nc" id="L61">        return getVolumeDetails(getCollectorItem(new ObjectId(componentIdString)));</span>
+    }
+
+    @Override
+    public Collection&lt;CloudVolumeStorage&gt; getVolumeDetailsByVolumeIds(List&lt;String&gt; volumeIds) {
+<span class="nc" id="L66">        return cloudVolumeRepository.findByVolumeIdIn(volumeIds);</span>
+    }
+
+    @Override
+    public Collection&lt;CloudVolumeStorage&gt; getVolumeDetailsByTags(List&lt;NameValue&gt; tags) {
+<span class="nc" id="L71">        Set&lt;CloudVolumeStorage&gt; volumes = new HashSet&lt;&gt;();</span>
+<span class="nc bnc" id="L72" title="All 2 branches missed.">        for (NameValue nv : tags) {</span>
+<span class="nc" id="L73">            volumes.addAll(cloudVolumeRepository.findByTagNameAndValue(nv.getName(), nv.getValue()));</span>
+<span class="nc" id="L74">        }</span>
+<span class="nc" id="L75">        return volumes;</span>
+    }
+
+    @Override
+    public Collection&lt;CloudVolumeStorage&gt; getVolumeDetailsByAccount(String accountNumber) {
+<span class="nc" id="L80">        return cloudVolumeRepository.findByAccountNumber(accountNumber);</span>
+    }
+
+    @Override
+    public CloudVolumeAggregatedResponse getVolumeAggregatedData(String componentIdString) {
+<span class="nc" id="L85">        CollectorItem item = getCollectorItem(new ObjectId(componentIdString));</span>
+<span class="nc" id="L86">        CloudVolumeAggregatedResponse response = new CloudVolumeAggregatedResponse();</span>
+<span class="nc" id="L87">        Collection&lt;CloudVolumeStorage&gt; volumes = getVolumeDetails(item);</span>
+<span class="nc bnc" id="L88" title="All 4 branches missed.">        if ((item != null) &amp;&amp; !(item instanceof CloudConfig)) return response;</span>
+<span class="nc" id="L89">        CloudConfig config = (CloudConfig) item;</span>
+<span class="nc bnc" id="L90" title="All 2 branches missed.">        if (CollectionUtils.isEmpty(volumes)) return response;</span>
+<span class="nc" id="L91">        return aggregate(volumes, config);</span>
+    }
+
+    @Override
+    public Collection&lt;CloudVolumeStorage&gt; getVolumeDetailsByInstanceIds(List&lt;String&gt; attachInstances) {
+<span class="nc" id="L96">        return cloudVolumeRepository.findByAttachInstancesIn(attachInstances);</span>
+    }
+
+
+    @Override
+    public Collection&lt;String&gt; refreshVolumes(CloudVolumeListRefreshRequest request) {
+<span class="nc" id="L102">        Collection&lt;CloudVolumeStorage&gt; existing = cloudVolumeRepository.findByAccountNumber(request.getAccountNumber());</span>
+<span class="nc" id="L103">        Set&lt;CloudVolumeStorage&gt; toDelete = new HashSet&lt;&gt;();</span>
+<span class="nc" id="L104">        Set&lt;String&gt; deletedIds = new HashSet&lt;&gt;();</span>
+<span class="nc bnc" id="L105" title="All 4 branches missed.">        if (CollectionUtils.isEmpty(request.getVolumeIds()) || CollectionUtils.isEmpty(existing))</span>
+<span class="nc" id="L106">            return new ArrayList&lt;&gt;();</span>
+
+<span class="nc bnc" id="L108" title="All 2 branches missed.">        for (CloudVolumeStorage ci : existing) {</span>
+<span class="nc bnc" id="L109" title="All 2 branches missed.">            if (!request.getVolumeIds().contains(ci.getVolumeId())) {</span>
+<span class="nc" id="L110">                toDelete.add(ci);</span>
+<span class="nc" id="L111">                deletedIds.add(ci.getVolumeId());</span>
+            }
+<span class="nc" id="L113">        }</span>
+<span class="nc bnc" id="L114" title="All 2 branches missed.">        if (CollectionUtils.isEmpty(toDelete)) {</span>
+<span class="nc" id="L115">            cloudVolumeRepository.delete(toDelete);</span>
+        }
+<span class="nc" id="L117">        return deletedIds;</span>
+    }
+
+    private CloudVolumeStorage createCloudVolumeObject(CloudVolumeCreateRequest request) {
+<span class="nc" id="L121">        CloudVolumeStorage volume = new CloudVolumeStorage();</span>
+<span class="nc" id="L122">        volume.setAccountNumber(request.getAccountNumber());</span>
+<span class="nc" id="L123">        volume.setStatus(request.getStatus());</span>
+<span class="nc" id="L124">        volume.setEncrypted(request.isEncrypted());</span>
+<span class="nc" id="L125">        volume.setVolumeId(request.getVolumeId());</span>
+<span class="nc" id="L126">        volume.getTags().addAll(request.getTags());</span>
+<span class="nc" id="L127">        return volume;</span>
+    }
+
+    @Override
+    public List&lt;String&gt; upsertVolume(List&lt;CloudVolumeCreateRequest&gt; volumes) {
+<span class="nc" id="L132">        List&lt;String&gt; objectIds = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L133" title="All 2 branches missed.">        if (!CollectionUtils.isEmpty(volumes))</span>
+<span class="nc bnc" id="L134" title="All 2 branches missed.">            for (CloudVolumeCreateRequest ci : volumes) {</span>
+<span class="nc" id="L135">                CloudVolumeStorage newObject = createCloudVolumeObject(ci);</span>
+<span class="nc" id="L136">                CloudVolumeStorage existing = cloudVolumeRepository.findByVolumeId(ci.getVolumeId());</span>
+<span class="nc bnc" id="L137" title="All 2 branches missed.">                if (existing == null) {</span>
+<span class="nc" id="L138">                    CloudVolumeStorage in = cloudVolumeRepository.save(newObject);</span>
+<span class="nc" id="L139">                    objectIds.add(in.getId().toString());</span>
+<span class="nc" id="L140">                } else {</span>
+                    try {
+<span class="nc" id="L142">                        HygieiaUtils.mergeObjects(existing, newObject);</span>
+                        //Copy ArrayLists manually
+<span class="nc bnc" id="L144" title="All 2 branches missed.">                        if (!CollectionUtils.isEmpty(newObject.getTags())) {</span>
+<span class="nc" id="L145">                            existing.getTags().clear();</span>
+<span class="nc" id="L146">                            existing.getTags().addAll(newObject.getTags());</span>
+                        }
+<span class="nc bnc" id="L148" title="All 2 branches missed.">                        if (!CollectionUtils.isEmpty(newObject.getAttachInstances())) {</span>
+<span class="nc" id="L149">                            existing.getAttachInstances().clear();</span>
+<span class="nc" id="L150">                            existing.getAttachInstances().addAll(newObject.getAttachInstances());</span>
+                        }
+<span class="nc" id="L152">                        cloudVolumeRepository.save(existing);</span>
+<span class="nc" id="L153">                        objectIds.add(existing.getId().toString());</span>
+<span class="nc" id="L154">                    } catch (IllegalAccessException | InvocationTargetException e) {</span>
+<span class="nc" id="L155">                    	LOGGER.error(&quot;Error saving cloud volume info for volumeID: &quot; + ci.getVolumeId(), e);</span>
+<span class="nc" id="L156">                    }</span>
+                }
+<span class="nc" id="L158">            }</span>
+<span class="nc" id="L159">        return objectIds;</span>
+    }
+
+    private CloudVolumeAggregatedResponse aggregate(Collection&lt;CloudVolumeStorage&gt; volumes, CloudConfig config) {
+<span class="nc" id="L163">        int totalCount = 0;</span>
+        /** For future enhancements
+         double estimatedCharge = 0.0;
+         int memoryHighCount = 0;
+         int memoryAlertCount = 0;
+         int memoryLowCount = 0;
+         int diskHighCount = 0;
+         int diskAlertCount = 0;
+         int diskLowCount = 0;
+         int networkHighCount = 0;
+         int networkAlertCount = 0;
+         int networkLowCount = 0;
+         **/
+<span class="nc" id="L176">        CloudVolumeAggregatedResponse response = new CloudVolumeAggregatedResponse();</span>
+<span class="nc bnc" id="L177" title="All 2 branches missed.">        for (CloudVolumeStorage rd : volumes) {</span>
+<span class="nc" id="L178">            totalCount = totalCount + 1;</span>
+<span class="nc" id="L179">        }</span>
+<span class="nc" id="L180">        return response;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

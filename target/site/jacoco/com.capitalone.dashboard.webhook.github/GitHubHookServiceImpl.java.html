@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GitHubHookServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.webhook.github</a> &gt; <span class="el_source">GitHubHookServiceImpl.java</span></div><h1>GitHubHookServiceImpl.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.webhook.github;
+
+import com.capitalone.dashboard.misc.HygieiaException;
+import com.capitalone.dashboard.repository.CollectorItemRepository;
+import com.capitalone.dashboard.settings.ApiSettings;
+import com.capitalone.dashboard.client.RestClient;
+import com.capitalone.dashboard.repository.CommitRepository;
+import com.capitalone.dashboard.repository.GitRequestRepository;
+import com.capitalone.dashboard.service.CollectorService;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.ParseException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.net.MalformedURLException;
+
+import static com.capitalone.dashboard.webhook.github.GitHubPayloadType.Unknown;
+
+@Service
+public class GitHubHookServiceImpl implements GitHubHookService {
+<span class="nc" id="L23">    private static final Log LOG = LogFactory.getLog(GitHubHookServiceImpl.class);</span>
+
+    private final CommitRepository commitRepository;
+    private final GitRequestRepository gitRequestRepository;
+    private final CollectorItemRepository collectorItemRepository;
+    private final CollectorService collectorService;
+    protected final ApiSettings apiSettings;
+    protected final RestClient restClient;
+
+    @Autowired
+    public GitHubHookServiceImpl(CommitRepository commitRepository,
+                                 GitRequestRepository gitRequestRepository,
+                                 CollectorService collectorService,
+                                 CollectorItemRepository collectorItemRepository,
+                                 ApiSettings apiSettings,
+<span class="nc" id="L38">                                 RestClient restClient) {</span>
+<span class="nc" id="L39">        this.commitRepository = commitRepository;</span>
+<span class="nc" id="L40">        this.gitRequestRepository = gitRequestRepository;</span>
+<span class="nc" id="L41">        this.collectorItemRepository = collectorItemRepository;</span>
+<span class="nc" id="L42">        this.collectorService = collectorService;</span>
+<span class="nc" id="L43">        this.apiSettings = apiSettings;</span>
+<span class="nc" id="L44">        this.restClient = restClient;</span>
+<span class="nc" id="L45">    }</span>
+
+    protected GitHubPayloadType getPayLoadType(JSONObject jsonObject) {
+<span class="nc bnc" id="L48" title="All 2 branches missed.">        if (jsonObject.get(&quot;commits&quot;) != null) { return GitHubPayloadType.Push; }</span>
+
+<span class="nc bnc" id="L50" title="All 2 branches missed.">        if (jsonObject.get(&quot;pull_request&quot;) != null) { return GitHubPayloadType.PullRequest; }</span>
+
+<span class="nc bnc" id="L52" title="All 2 branches missed.">        if (jsonObject.get(&quot;issue&quot;) != null) { return GitHubPayloadType.Issues; }</span>
+
+<span class="nc" id="L54">        return Unknown;</span>
+    }
+
+    @Override
+    public String createFromGitHubv3(JSONObject request) throws ParseException, HygieiaException, MalformedURLException {
+<span class="nc" id="L59">        GitHubPayloadType payloadType = getPayLoadType(request);</span>
+<span class="nc" id="L60">        GitHubV3 gitHubv3 = null;</span>
+<span class="nc" id="L61">        String result = null;</span>
+
+<span class="nc bnc" id="L63" title="All 4 branches missed.">        switch (payloadType) {</span>
+            case Push:
+<span class="nc" id="L65">                gitHubv3 = new GitHubCommitV3(collectorService, restClient, commitRepository, gitRequestRepository, collectorItemRepository, apiSettings);</span>
+<span class="nc" id="L66">                break;</span>
+
+            case PullRequest:
+<span class="nc" id="L69">                gitHubv3 = new GitHubPullRequestV3(collectorService, restClient, gitRequestRepository, commitRepository, collectorItemRepository, apiSettings);</span>
+<span class="nc" id="L70">                break;</span>
+
+            case Issues:
+<span class="nc" id="L73">                gitHubv3 = new GitHubIssueV3(collectorService, restClient, gitRequestRepository, collectorItemRepository, apiSettings);</span>
+<span class="nc" id="L74">                break;</span>
+
+            default:
+<span class="nc" id="L77">                return Unknown + &quot;Request Type&quot;;</span>
+        }
+
+<span class="nc" id="L80">        long begin = System.currentTimeMillis();</span>
+
+<span class="nc" id="L82">        result = gitHubv3.process(request);</span>
+
+<span class="nc" id="L84">        long end = System.currentTimeMillis();</span>
+
+<span class="nc" id="L86">        LOG.info(&quot;Total Time Taken = &quot;+(end-begin)+&quot; milliseconds&quot;);</span>
+
+<span class="nc" id="L88">        return result;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

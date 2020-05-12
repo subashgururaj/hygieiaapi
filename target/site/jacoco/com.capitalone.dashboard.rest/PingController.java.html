@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PingController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.rest</a> &gt; <span class="el_source">PingController.java</span></div><h1>PingController.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.rest;
+
+import org.apache.log4j.Logger;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.PropertySource;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
+import static org.springframework.web.bind.annotation.RequestMethod.GET;
+
+@PropertySource(ignoreResourceNotFound=true,value= &quot;classpath:version.properties&quot;)
+
+@RestController
+public class PingController {
+<span class="fc" id="L18">	private static final Logger LOGGER = Logger.getLogger(PingController.class);</span>
+
+    @Value(&quot;${version.number}&quot;)
+    private String versionNumber;
+
+<span class="fc" id="L23">    public PingController() {</span>
+
+<span class="fc" id="L25">    }</span>
+
+    @RequestMapping(value = &quot;/ping&quot;, method = GET, produces = APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;Boolean&gt; ping () {
+<span class="nc" id="L29">        return ResponseEntity</span>
+<span class="nc" id="L30">                .status(HttpStatus.OK)</span>
+<span class="nc" id="L31">                .body(true);</span>
+    }
+
+    @RequestMapping(value = &quot;/appinfo&quot;, method = GET, produces = APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;String&gt; getAppInfo() {
+<span class="fc" id="L36">        String appVersion=versionNumber;</span>
+<span class="fc" id="L37">        return ResponseEntity.status(HttpStatus.OK).body(appVersion);</span>
+    }
+    
+    @RequestMapping(value = &quot;/findUser&quot;, method = GET, produces = APPLICATION_JSON_VALUE)
+	public ResponseEntity&lt;Boolean&gt; authenticatedPing() {
+<span class="nc" id="L42">		LOGGER.debug(&quot;===&gt; finduserMethod&quot;);</span>
+<span class="nc" id="L43">		return ResponseEntity.status(HttpStatus.OK).body(true);</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

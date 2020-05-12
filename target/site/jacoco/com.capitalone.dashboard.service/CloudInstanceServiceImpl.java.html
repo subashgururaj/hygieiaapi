@@ -1,0 +1,278 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CloudInstanceServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.service</a> &gt; <span class="el_source">CloudInstanceServiceImpl.java</span></div><h1>CloudInstanceServiceImpl.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.service;
+
+import com.capitalone.dashboard.config.collector.CloudConfig;
+import com.capitalone.dashboard.misc.HygieiaException;
+import com.capitalone.dashboard.model.CloudInstance;
+import com.capitalone.dashboard.model.CloudInstanceHistory;
+import com.capitalone.dashboard.model.CollectorItem;
+import com.capitalone.dashboard.model.CollectorType;
+import com.capitalone.dashboard.model.Component;
+import com.capitalone.dashboard.model.NameValue;
+import com.capitalone.dashboard.repository.CloudInstanceHistoryRepository;
+import com.capitalone.dashboard.repository.CloudInstanceRepository;
+import com.capitalone.dashboard.repository.ComponentRepository;
+import com.capitalone.dashboard.request.CloudInstanceCreateRequest;
+import com.capitalone.dashboard.request.CloudInstanceListRefreshRequest;
+import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+@Service
+public class CloudInstanceServiceImpl implements CloudInstanceService {
+
+    private final CloudInstanceRepository cloudInstanceRepository;
+    private final CloudInstanceHistoryRepository cloudInstanceHistoryRepository;
+    private final ComponentRepository componentRepository;
+
+    @Autowired
+    public CloudInstanceServiceImpl(CloudInstanceRepository cloudInstanceRepository,
+                                    CloudInstanceHistoryRepository cloudInstanceHistoryRepository,
+<span class="fc" id="L38">                                    ComponentRepository cloudConfigRepository) {</span>
+<span class="fc" id="L39">        this.cloudInstanceRepository = cloudInstanceRepository;</span>
+<span class="fc" id="L40">        this.cloudInstanceHistoryRepository = cloudInstanceHistoryRepository;</span>
+<span class="fc" id="L41">        this.componentRepository = cloudConfigRepository;</span>
+<span class="fc" id="L42">    }</span>
+
+    public Collection&lt;CloudInstance&gt; getInstanceDetails(CollectorItem item) {
+<span class="nc" id="L45">        Collection&lt;CloudInstance&gt; instances = new HashSet&lt;&gt;();</span>
+<span class="nc bnc" id="L46" title="All 4 branches missed.">        if ((item != null) &amp;&amp; (item instanceof CloudConfig)) {</span>
+<span class="nc" id="L47">            CloudConfig config = (CloudConfig) item;</span>
+<span class="nc" id="L48">            instances.addAll(getInstanceDetailsByTags(config.getTags()));</span>
+        }
+<span class="nc" id="L50">        return instances;</span>
+    }
+
+    private CollectorItem getCollectorItem(ObjectId componentId) {
+<span class="nc" id="L54">        Component component = componentRepository.findOne(componentId);</span>
+<span class="nc bnc" id="L55" title="All 2 branches missed.">        if (CollectionUtils.isEmpty(component.getCollectorItems())) return null;</span>
+<span class="nc" id="L56">        return component.getCollectorItems().get(CollectorType.Cloud).get(0);</span>
+    }
+
+    @Override
+    public Collection&lt;CloudInstance&gt; getInstanceDetailsByComponentId(String componentIdString) {
+<span class="nc" id="L61">        return getInstanceDetails(getCollectorItem(new ObjectId(componentIdString)));</span>
+    }
+
+    @Override
+    public CloudInstance getInstanceDetailsByInstanceId(String instanceId) {
+<span class="fc" id="L66">        return cloudInstanceRepository.findByInstanceId(instanceId);</span>
+    }
+
+    @Override
+    public Collection&lt;CloudInstance&gt; getInstanceDetailsByInstanceIds(List&lt;String&gt; instanceIds) {
+<span class="fc" id="L71">        return cloudInstanceRepository.findByInstanceIdIn(instanceIds);</span>
+    }
+
+    @Override
+    public Collection&lt;CloudInstance&gt; getInstanceDetailsByTags(List&lt;NameValue&gt; tags) {
+<span class="fc" id="L76">        Set&lt;CloudInstance&gt; instances = new HashSet&lt;&gt;();</span>
+<span class="fc bfc" id="L77" title="All 2 branches covered.">        for (NameValue nv : tags) {</span>
+<span class="fc" id="L78">            instances.addAll(cloudInstanceRepository.findByTagNameAndValue(nv.getName(), nv.getValue()));</span>
+<span class="fc" id="L79">        }</span>
+<span class="fc" id="L80">        return instances;</span>
+    }
+
+    @Override
+    public Collection&lt;CloudInstance&gt; getInstanceDetailsByAccount(String accountNumber) {
+<span class="fc" id="L85">        return cloudInstanceRepository.findByAccountNumber(accountNumber);</span>
+    }
+
+
+    @Override
+    public Collection&lt;CloudInstanceHistory&gt; getInstanceHistoryByAccount(String account) {
+<span class="fc" id="L91">        return cloudInstanceHistoryRepository.findByAccountNumber(account);</span>
+    }
+
+    @Override
+    public Collection&lt;String&gt; refreshInstances(CloudInstanceListRefreshRequest request) {
+<span class="fc" id="L96">        Collection&lt;CloudInstance&gt; existing = cloudInstanceRepository.findByAccountNumber(request.getAccountNumber());</span>
+<span class="fc" id="L97">        Set&lt;CloudInstance&gt; toDelete = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L98">        Set&lt;String&gt; deletedIds = new HashSet&lt;&gt;();</span>
+<span class="pc bpc" id="L99" title="1 of 4 branches missed.">        if (CollectionUtils.isEmpty(request.getInstanceIds()) || CollectionUtils.isEmpty(existing))</span>
+<span class="fc" id="L100">            return new ArrayList&lt;&gt;();</span>
+
+<span class="fc bfc" id="L102" title="All 2 branches covered.">        for (CloudInstance ci : existing) {</span>
+<span class="fc bfc" id="L103" title="All 2 branches covered.">            if (!request.getInstanceIds().contains(ci.getInstanceId())) {</span>
+<span class="fc" id="L104">                toDelete.add(ci);</span>
+<span class="fc" id="L105">                deletedIds.add(ci.getInstanceId());</span>
+            }
+<span class="fc" id="L107">        }</span>
+<span class="pc bpc" id="L108" title="1 of 2 branches missed.">        if (CollectionUtils.isEmpty(toDelete)) {</span>
+<span class="nc" id="L109">            cloudInstanceRepository.delete(toDelete);</span>
+        }
+<span class="fc" id="L111">        return deletedIds;</span>
+    }
+
+
+    private CloudInstance upsertCloudInstanceObject(CloudInstanceCreateRequest request, CloudInstance existing) throws HygieiaException {
+
+<span class="fc bfc" id="L117" title="All 2 branches covered.">        CloudInstance instance = (existing == null) ? new CloudInstance() : existing;</span>
+<span class="pc bpc" id="L118" title="1 of 4 branches missed.">        if (StringUtils.isEmpty(request.getAccountNumber()) || (StringUtils.isEmpty(request.getInstanceId()))) {</span>
+<span class="fc" id="L119">            throw new HygieiaException(&quot;Missing required fields (account number, instance id). &quot;, HygieiaException.ERROR_INSERTING_DATA);</span>
+        }
+
+<span class="fc" id="L122">        instance.setAccountNumber(request.getAccountNumber());</span>
+<span class="fc" id="L123">        instance.setInstanceId(request.getInstanceId());</span>
+
+        //Anything null or resulting in parsing error will be thrown back to caller.
+<span class="fc" id="L126">        setRootDeviceName(request, instance);</span>
+<span class="fc" id="L127">        setCpuUtilization(request, instance);</span>
+<span class="fc" id="L128">        setVirtualNetworkId(request, instance);</span>
+<span class="fc" id="L129">        setSubnetId(request, instance);</span>
+<span class="fc" id="L130">        setStatus(request, instance);</span>
+<span class="fc" id="L131">        setAge(request, instance);</span>
+<span class="fc" id="L132">        setDiskRead(request, instance);</span>
+<span class="fc" id="L133">        setDiskWrite(request, instance);</span>
+<span class="fc" id="L134">        setImageApproved(request, instance);</span>
+<span class="fc" id="L135">        setImageId(request, instance);</span>
+<span class="fc" id="L136">        setImageExpirationDate(request, instance);</span>
+
+<span class="fc" id="L138">        setInstanceOwner(request, instance);</span>
+<span class="fc" id="L139">        setInstanceType(request, instance);</span>
+<span class="fc" id="L140">        setLastAction(request, instance);</span>
+<span class="fc" id="L141">        setIsMonitored(request, instance);</span>
+<span class="fc" id="L142">        setNetworkIn(request, instance);</span>
+<span class="fc" id="L143">        setNetworkOut(request, instance);</span>
+<span class="fc" id="L144">        setLastUpdatedDate(request, instance);</span>
+<span class="fc" id="L145">        setPrivateDns(request, instance);</span>
+<span class="fc" id="L146">        setPublicIp(request, instance);</span>
+<span class="fc" id="L147">        setIsStopped(request, instance);</span>
+<span class="fc" id="L148">        setIsTagged(request, instance);</span>
+<span class="fc" id="L149">        setAutoScaleName(request, instance);</span>
+<span class="fc" id="L150">        setTags(request, instance);</span>
+<span class="fc" id="L151">        setSecurityGroups(request, instance);</span>
+<span class="fc" id="L152">        return instance;</span>
+    }
+
+    private void setSecurityGroups(CloudInstanceCreateRequest request, CloudInstance instance) {
+<span class="pc bpc" id="L156" title="1 of 2 branches missed.">        if (!CollectionUtils.isEmpty(request.getSecurityGroups())) {</span>
+<span class="fc" id="L157">            instance.getSecurityGroups().clear();</span>
+<span class="fc" id="L158">            instance.getSecurityGroups().addAll(request.getSecurityGroups());</span>
+        }
+<span class="fc" id="L160">    }</span>
+
+    private void setTags(CloudInstanceCreateRequest request, CloudInstance instance) {
+<span class="pc bpc" id="L163" title="1 of 2 branches missed.">        if (!CollectionUtils.isEmpty(request.getTags())) {</span>
+<span class="fc" id="L164">            instance.getTags().clear();</span>
+<span class="fc" id="L165">            instance.getTags().addAll(request.getTags());</span>
+        }
+<span class="fc" id="L167">    }</span>
+
+    private void setAutoScaleName(CloudInstanceCreateRequest request, CloudInstance instance) {
+<span class="pc bpc" id="L170" title="1 of 2 branches missed.">        if (request.getAutoScaleName() != null) instance.setAutoScaleName(request.getAutoScaleName());</span>
+<span class="fc" id="L171">    }</span>
+
+    private void setIsTagged(CloudInstanceCreateRequest request, CloudInstance instance) {
+<span class="pc bpc" id="L174" title="1 of 2 branches missed.">        if (request.getIsTagged() != null) instance.setIsTagged(Boolean.parseBoolean(request.getIsTagged()));</span>
+<span class="fc" id="L175">    }</span>
+
+    private void setIsStopped(CloudInstanceCreateRequest request, CloudInstance instance) {
+<span class="pc bpc" id="L178" title="1 of 2 branches missed.">        if (request.getIsStopped() != null) instance.setIsStopped(Boolean.parseBoolean(request.getIsStopped()));</span>
+<span class="fc" id="L179">    }</span>
+
+    private void setPublicIp(CloudInstanceCreateRequest request, CloudInstance instance) {
+<span class="pc bpc" id="L182" title="1 of 2 branches missed.">        if (request.getPublicIp() != null) instance.setPublicIp(request.getPublicIp());</span>
+<span class="fc" id="L183">    }</span>
+
+    private void setPrivateDns(CloudInstanceCreateRequest request, CloudInstance instance) {
+<span class="pc bpc" id="L186" title="1 of 2 branches missed.">        if (request.getPrivateDns() != null) instance.setPrivateDns(request.getPrivateDns());</span>
+<span class="fc" id="L187">    }</span>
+
+    private void setLastUpdatedDate(CloudInstanceCreateRequest request, CloudInstance instance) {
+<span class="pc bpc" id="L190" title="1 of 2 branches missed.">        if (request.getLastUpdatedDate() != null)</span>
+<span class="nc" id="L191">            instance.setLastUpdatedDate(Long.parseLong(request.getLastUpdatedDate()));</span>
+<span class="fc" id="L192">    }</span>
+
+    private void setNetworkOut(CloudInstanceCreateRequest request, CloudInstance instance) {
+<span class="pc bpc" id="L195" title="1 of 2 branches missed.">        if (request.getNetworkOut() != null) instance.setNetworkOut(Double.parseDouble(request.getNetworkOut()));</span>
+<span class="fc" id="L196">    }</span>
+
+    private void setNetworkIn(CloudInstanceCreateRequest request, CloudInstance instance) {
+<span class="pc bpc" id="L199" title="1 of 2 branches missed.">        if (request.getNetworkIn() != null) instance.setNetworkIn(Double.parseDouble(request.getNetworkIn()));</span>
+<span class="fc" id="L200">    }</span>
+
+    private void setIsMonitored(CloudInstanceCreateRequest request, CloudInstance instance) {
+<span class="pc bpc" id="L203" title="1 of 2 branches missed.">        if (request.getIsMonitored() != null) instance.setIsMonitored(Boolean.parseBoolean(request.getIsMonitored()));</span>
+<span class="fc" id="L204">    }</span>
+
+    private void setLastAction(CloudInstanceCreateRequest request, CloudInstance instance) {
+<span class="pc bpc" id="L207" title="1 of 2 branches missed.">        if (request.getLastAction() != null) instance.setLastAction(request.getLastAction());</span>
+<span class="fc" id="L208">    }</span>
+
+    private void setInstanceType(CloudInstanceCreateRequest request, CloudInstance instance) {
+<span class="pc bpc" id="L211" title="1 of 2 branches missed.">        if (request.getInstanceType() != null) instance.setInstanceType(request.getInstanceType());</span>
+<span class="fc" id="L212">    }</span>
+
+    private void setInstanceOwner(CloudInstanceCreateRequest request, CloudInstance instance) {
+<span class="pc bpc" id="L215" title="1 of 2 branches missed.">        if (request.getInstanceOwner() != null) instance.setInstanceOwner(request.getInstanceOwner());</span>
+<span class="fc" id="L216">    }</span>
+
+    private void setImageExpirationDate(CloudInstanceCreateRequest request, CloudInstance instance) {
+<span class="pc bpc" id="L219" title="1 of 2 branches missed.">        if (request.getImageExpirationDate() != null)</span>
+<span class="fc" id="L220">            instance.setImageExpirationDate(Long.parseLong(request.getImageExpirationDate()));</span>
+<span class="fc" id="L221">    }</span>
+
+    private void setImageId(CloudInstanceCreateRequest request, CloudInstance instance) {
+<span class="pc bpc" id="L224" title="1 of 2 branches missed.">        if (request.getImageId() != null) instance.setImageId(request.getImageId());</span>
+<span class="fc" id="L225">    }</span>
+
+    private void setImageApproved(CloudInstanceCreateRequest request, CloudInstance instance) {
+<span class="pc bpc" id="L228" title="1 of 2 branches missed.">        if (request.getImageApproved() != null)</span>
+<span class="fc" id="L229">            instance.setImageApproved(Boolean.parseBoolean(request.getImageApproved()));</span>
+<span class="fc" id="L230">    }</span>
+
+    private void setDiskWrite(CloudInstanceCreateRequest request, CloudInstance instance) {
+<span class="pc bpc" id="L233" title="1 of 2 branches missed.">        if (request.getDiskWrite() != null) instance.setDiskWrite(Double.parseDouble(request.getDiskWrite()));</span>
+<span class="fc" id="L234">    }</span>
+
+    private void setDiskRead(CloudInstanceCreateRequest request, CloudInstance instance) {
+<span class="pc bpc" id="L237" title="1 of 2 branches missed.">        if (request.getDiskRead() != null) instance.setDiskRead(Double.parseDouble(request.getDiskRead()));</span>
+<span class="fc" id="L238">    }</span>
+
+    private void setAge(CloudInstanceCreateRequest request, CloudInstance instance) {
+<span class="pc bpc" id="L241" title="1 of 2 branches missed.">        if (request.getAge() != null) instance.setAge(Integer.parseInt(request.getAge()));</span>
+<span class="fc" id="L242">    }</span>
+
+    private void setStatus(CloudInstanceCreateRequest request, CloudInstance instance) {
+<span class="pc bpc" id="L245" title="1 of 2 branches missed.">        if (request.getStatus() != null) instance.setStatus(request.getStatus());</span>
+<span class="fc" id="L246">    }</span>
+
+    private void setSubnetId(CloudInstanceCreateRequest request, CloudInstance instance) {
+<span class="pc bpc" id="L249" title="1 of 2 branches missed.">        if (request.getSubnetId() != null) instance.setSubnetId(request.getSubnetId());</span>
+<span class="fc" id="L250">    }</span>
+
+    private void setVirtualNetworkId(CloudInstanceCreateRequest request, CloudInstance instance) {
+<span class="pc bpc" id="L253" title="1 of 2 branches missed.">        if (request.getVirtualNetworkId() != null) instance.setVirtualNetworkId(request.getVirtualNetworkId());</span>
+<span class="fc" id="L254">    }</span>
+
+    private void setCpuUtilization(CloudInstanceCreateRequest request, CloudInstance instance) {
+<span class="pc bpc" id="L257" title="1 of 2 branches missed.">        if (request.getCpuUtilization() != null)</span>
+<span class="fc" id="L258">            instance.setCpuUtilization(Double.parseDouble(request.getCpuUtilization()));</span>
+<span class="fc" id="L259">    }</span>
+
+    private void setRootDeviceName(CloudInstanceCreateRequest request, CloudInstance instance) {
+<span class="pc bpc" id="L262" title="1 of 2 branches missed.">        if (request.getRootDeviceName() != null) instance.setRootDeviceName(request.getRootDeviceName());</span>
+<span class="fc" id="L263">    }</span>
+
+
+    @Override
+    public List&lt;String&gt; upsertInstance(List&lt;CloudInstanceCreateRequest&gt; instances) throws HygieiaException {
+<span class="fc" id="L268">        List&lt;String&gt; objectIds = new ArrayList&lt;&gt;();</span>
+<span class="pc bpc" id="L269" title="1 of 2 branches missed.">        if (CollectionUtils.isEmpty(instances)) return objectIds;</span>
+<span class="fc bfc" id="L270" title="All 2 branches covered.">        for (CloudInstanceCreateRequest cir : instances) {</span>
+<span class="fc" id="L271">            CloudInstance existing = cloudInstanceRepository.findByInstanceId(cir.getInstanceId());</span>
+<span class="fc" id="L272">            CloudInstance upsertObject = cloudInstanceRepository.save(upsertCloudInstanceObject(cir, existing));</span>
+<span class="fc" id="L273">            objectIds.add(upsertObject.getId().toString());</span>
+<span class="fc" id="L274">        }</span>
+<span class="fc" id="L275">        return objectIds;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

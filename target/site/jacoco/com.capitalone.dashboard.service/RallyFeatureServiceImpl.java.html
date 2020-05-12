@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RallyFeatureServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.service</a> &gt; <span class="el_source">RallyFeatureServiceImpl.java</span></div><h1>RallyFeatureServiceImpl.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.service;
+
+import com.capitalone.dashboard.model.Collector;
+import com.capitalone.dashboard.model.CollectorItem;
+import com.capitalone.dashboard.model.CollectorType;
+import com.capitalone.dashboard.model.Component;
+import com.capitalone.dashboard.model.RallyBurnDownData;
+import com.capitalone.dashboard.model.RallyFeature;
+import com.capitalone.dashboard.repository.CollectorRepository;
+import com.capitalone.dashboard.repository.ComponentRepository;
+import com.capitalone.dashboard.repository.RallyBurnDownRepository;
+import com.capitalone.dashboard.repository.RallyFeatureRepository;
+import com.capitalone.dashboard.request.RallyFeatureRequest;
+import com.capitalone.dashboard.response.RallyBurnDownResponse;
+import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+
+@Service
+public class RallyFeatureServiceImpl implements RallyFeatureService {
+	
+	private final RallyFeatureRepository rallyFeatureRepository;
+	private final RallyBurnDownRepository rallyBurnDownRepository;
+
+	private final CollectorRepository collectorRepository;
+	private final ComponentRepository componentRepository;
+
+	@Autowired
+	public RallyFeatureServiceImpl(RallyFeatureRepository rallyFeatureRepository,
+			RallyBurnDownRepository rallyBurnDownRepository,
+			CollectorRepository collectorRepository,
+<span class="fc" id="L41">			ComponentRepository componentRepository) {</span>
+<span class="fc" id="L42">		this.rallyFeatureRepository = rallyFeatureRepository;</span>
+<span class="fc" id="L43">		this.rallyBurnDownRepository = rallyBurnDownRepository;</span>
+<span class="fc" id="L44">		this.collectorRepository = collectorRepository;</span>
+<span class="fc" id="L45">		this.componentRepository = componentRepository;</span>
+<span class="fc" id="L46">	}</span>
+
+	@Override
+	public List&lt;RallyFeature&gt; rallyProjectIterationType(String projectId) {
+<span class="nc" id="L50">		List&lt;RallyFeature&gt; iteraioncount = rallyFeatureRepository.findByIterationLists(projectId);</span>
+<span class="nc" id="L51">		Set&lt;RallyFeature&gt; s1 = new HashSet&lt;RallyFeature&gt;();</span>
+<span class="nc bnc" id="L52" title="All 2 branches missed.">		for (int i = 0; i &lt; iteraioncount.size(); i++) {</span>
+<span class="nc" id="L53">			s1.add(iteraioncount.get(i));</span>
+		}
+<span class="nc" id="L55">		iteraioncount.clear();</span>
+<span class="nc" id="L56">		iteraioncount.addAll(s1);</span>
+<span class="nc" id="L57">		return iteraioncount;</span>
+	}
+
+	public List&lt;RallyFeature&gt; rallyWidgetDataDetails(CollectorItem collectorItem) {
+<span class="nc" id="L61">		List&lt;RallyFeature&gt; currentIteration = rallyFeatureRepository</span>
+<span class="nc" id="L62">				.findByCollectorItemIdAndRemainingDaysNot(collectorItem.getId(),0);</span>
+<span class="nc" id="L63">		return currentIteration;</span>
+	}
+
+	
+	public CollectorItem getCollectorItem(RallyFeatureRequest request) {
+<span class="nc" id="L68">		Component component = componentRepository.findOne(request.getComponentId());</span>
+<span class="nc bnc" id="L69" title="All 2 branches missed.">		if (component == null) {</span>
+<span class="nc" id="L70">			return null;</span>
+		}
+
+<span class="nc" id="L73">		List&lt;CollectorItem&gt; collectorItems = component.getCollectorItems(CollectorType.AgileTool);</span>
+<span class="nc" id="L74">		ObjectId collectorId = null;</span>
+<span class="nc" id="L75">		Optional&lt;Collector&gt; collector = collectorRepository.findByCollectorTypeAndName(CollectorType.AgileTool, &quot;Rally&quot;)</span>
+<span class="nc" id="L76">															.stream()</span>
+<span class="nc" id="L77">															.findFirst();</span>
+<span class="nc" id="L78">		collectorId = collector.get().getId();</span>
+
+<span class="nc bnc" id="L80" title="All 2 branches missed.">		for(CollectorItem collectorItem : collectorItems){</span>
+<span class="nc bnc" id="L81" title="All 4 branches missed.">			if(collectorItem.getCollectorId().equals(collectorId) &amp;&amp; collectorItem.getOptions().get(&quot;projectId&quot;).equals(request.getProjectId())){</span>
+<span class="nc" id="L82">				return collectorItem;</span>
+			}
+<span class="nc" id="L84">		}</span>
+		
+<span class="nc" id="L86">		return null;</span>
+	}
+
+	@Override
+	public RallyBurnDownResponse rallyBurnDownData(RallyFeature request) {
+
+<span class="nc" id="L92">		RallyBurnDownResponse rallyBurnDownResponse = new RallyBurnDownResponse();</span>
+<span class="nc" id="L93">		List&lt;String&gt; iterationDates = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L94">		List&lt;String&gt; toDoHours = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L95">		List&lt;Double&gt; acceptedPoints = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L96">		List&lt;Double&gt; taskEstimateArray = new ArrayList&lt;&gt;();</span>
+
+<span class="nc" id="L98">		RallyBurnDownData burnDownData = rallyBurnDownRepository.findByIterationIdAndProjectId(request.getIterationId(),</span>
+<span class="nc" id="L99">				request.getProjectId());</span>
+<span class="nc bnc" id="L100" title="All 2 branches missed.">		if(burnDownData!=null) {</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">		for (Map&lt;String, String&gt; burnDownDetail : burnDownData.getBurnDownData()) {</span>
+<span class="nc" id="L102">			iterationDates.add(burnDownDetail.get(RallyBurnDownData.ITERATION_DATE).substring(5, 10));</span>
+<span class="nc" id="L103">			toDoHours.add(burnDownDetail.get(RallyBurnDownData.ITERATION_TO_DO_HOURS));</span>
+<span class="nc" id="L104">			acceptedPoints.add(Double.parseDouble(burnDownDetail.get(RallyBurnDownData.ACCEPTED_POINTS)));</span>
+<span class="nc" id="L105">		}</span>
+
+<span class="nc" id="L107">		double maximumTotalEstimate = burnDownData.getTotalEstimate();</span>
+<span class="nc" id="L108">		double estimateDiff = maximumTotalEstimate / (burnDownData.getBurnDownData().size() - 1);</span>
+
+<span class="nc bnc" id="L110" title="All 2 branches missed.">		for (int j = 0; j &lt; burnDownData.getBurnDownData().size(); j++) {</span>
+<span class="nc bnc" id="L111" title="All 2 branches missed.">			if (burnDownData.getBurnDownData().size() - j == 1) {</span>
+<span class="nc" id="L112">				taskEstimateArray.add(0d);</span>
+			} else {
+<span class="nc" id="L114">				taskEstimateArray</span>
+<span class="nc" id="L115">						.add(BigDecimal.valueOf(maximumTotalEstimate).setScale(2, RoundingMode.HALF_UP).doubleValue());</span>
+<span class="nc" id="L116">				maximumTotalEstimate = maximumTotalEstimate - estimateDiff;</span>
+			}
+		}
+
+<span class="nc" id="L120">		rallyBurnDownResponse.setAcceptedPoints(acceptedPoints);</span>
+<span class="nc" id="L121">		rallyBurnDownResponse.setToDoHours(toDoHours);</span>
+<span class="nc" id="L122">		rallyBurnDownResponse.setTotalTaskEstimate(taskEstimateArray);</span>
+<span class="nc" id="L123">		rallyBurnDownResponse.setIterationDates(iterationDates);</span>
+		}
+<span class="nc" id="L125">		return rallyBurnDownResponse;</span>
+
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

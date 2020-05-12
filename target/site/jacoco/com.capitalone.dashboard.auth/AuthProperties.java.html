@@ -1,0 +1,264 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AuthProperties.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.auth</a> &gt; <span class="el_source">AuthProperties.java</span></div><h1>AuthProperties.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.auth;
+
+import java.util.List;
+import java.util.UUID;
+
+import javax.annotation.PostConstruct;
+
+import org.apache.commons.collections.CollectionUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.stereotype.Component;
+
+import com.capitalone.dashboard.model.AuthType;
+import com.google.common.collect.Lists;
+
+@Component
+@EnableConfigurationProperties
+@ConfigurationProperties(prefix = &quot;auth&quot;)
+<span class="fc" id="L21">public class AuthProperties {</span>
+
+<span class="fc" id="L23">	private static final Logger LOGGER = LoggerFactory.getLogger(AuthProperties.class);</span>
+
+	private Long expirationTime;
+	private String secret;
+	private String ldapUserDnPattern;
+	private String ldapServerUrl;
+<span class="fc" id="L29">	private List&lt;AuthType&gt; authenticationProviders = Lists.newArrayList();</span>
+
+	private String adDomain;
+	private String adRootDn;
+	private String adUserRootDn;
+	private String adSvcRootDn;
+	private String adUrl;
+
+	private String ldapBindUser;
+	private String ldapBindPass;
+
+<span class="fc" id="L40">	private boolean ldapDisableGroupAuthorization = false;</span>
+
+	/**
+	 * The LDAP filter used to search for users (optional). For example &quot;(&amp;(objectClass=user)(sAMAccountName={0}))&quot;. The
+	 * substituted parameter is the user's login name.
+	 **/
+	private String ldapUserSearchFilter;
+
+	/**
+	 * Username (DN) of the &quot;manager&quot; user identity (i.e. &quot;uid=admin,ou=system&quot;) which
+	 * will be used to authenticate to a (non-embedded) LDAP server. If omitted,
+	 * anonymous access will be used.
+	 **/
+	private String ldapManagerDn;
+
+	/**
+	 * The password for the manager DN. This is required if the ldapManagerDn is
+	 * specified.
+	 **/
+	private String ldapManagerPassword;
+
+	// -- SSO properties
+	private String userEid;
+	private String userEmail;
+	private String userFirstName;
+	private String userLastName;
+	private String userMiddelInitials;
+	private String userDisplayName;
+	//-- end SSO properties
+
+	public Long getExpirationTime() {
+<span class="fc" id="L71">		return expirationTime;</span>
+	}
+
+	public void setExpirationTime(Long expirationTime) {
+<span class="fc" id="L75">		this.expirationTime = expirationTime;</span>
+<span class="fc" id="L76">	}</span>
+
+	public String getSecret() {
+<span class="fc" id="L79">		return secret;</span>
+	}
+
+	public void setSecret(String secret) {
+<span class="fc" id="L83">		this.secret = secret;</span>
+<span class="fc" id="L84">	}</span>
+
+	public String getLdapUserDnPattern() {
+<span class="fc" id="L87">		return ldapUserDnPattern;</span>
+	}
+
+	public void setLdapUserDnPattern(String ldapUserDnPattern) {
+<span class="fc" id="L91">		this.ldapUserDnPattern = ldapUserDnPattern;</span>
+<span class="fc" id="L92">	}</span>
+
+	public String getLdapServerUrl() {
+<span class="fc" id="L95">		return ldapServerUrl;</span>
+	}
+
+	public void setLdapServerUrl(String ldapServerUrl) {
+<span class="fc" id="L99">		this.ldapServerUrl = ldapServerUrl;</span>
+<span class="fc" id="L100">	}</span>
+
+	public List&lt;AuthType&gt; getAuthenticationProviders() {
+<span class="fc" id="L103">		return authenticationProviders;</span>
+	}
+
+	public void setAuthenticationProviders(List&lt;AuthType&gt; authenticationProviders) {
+<span class="nc" id="L107">		this.authenticationProviders = authenticationProviders;</span>
+<span class="nc" id="L108">	}</span>
+
+	public String getAdDomain() {
+<span class="fc" id="L111">		return adDomain;</span>
+	}
+
+	public void setAdDomain(String adDomain) {
+<span class="fc" id="L115">		this.adDomain = adDomain;</span>
+<span class="fc" id="L116">	}</span>
+
+	public String getAdRootDn() {
+<span class="fc" id="L119">		return adRootDn;</span>
+	}
+
+	public void setAdRootDn(String adRootDn) {
+<span class="fc" id="L123">		this.adRootDn = adRootDn;</span>
+<span class="fc" id="L124">	}</span>
+
+	public String getAdUserRootDn() {
+<span class="fc" id="L127">		return adUserRootDn;</span>
+	}
+
+	public void setAdUserRootDn(String adUserRootDn) {
+<span class="nc" id="L131">		this.adUserRootDn = adUserRootDn;</span>
+<span class="nc" id="L132">	}</span>
+
+	public String getAdSvcRootDn() {
+<span class="fc" id="L135">		return adSvcRootDn;</span>
+	}
+
+	public void setAdSvcRootDn(String adSvcRootDn) {
+<span class="nc" id="L139">		this.adSvcRootDn = adSvcRootDn;</span>
+<span class="nc" id="L140">	}</span>
+
+	public String getAdUrl() {
+<span class="fc" id="L143">		return adUrl;</span>
+	}
+
+	public void setAdUrl(String adUrl) {
+<span class="fc" id="L147">		this.adUrl = adUrl;</span>
+<span class="fc" id="L148">	}</span>
+
+	public String getLdapBindUser() {
+<span class="nc" id="L151">		return ldapBindUser;</span>
+	}
+
+	public void setLdapBindUser(String ldapBindUser) {
+<span class="fc" id="L155">		this.ldapBindUser = ldapBindUser;</span>
+<span class="fc" id="L156">	}</span>
+
+	public String getLdapBindPass() {
+<span class="nc" id="L159">		return ldapBindPass;</span>
+	}
+
+	public void setLdapBindPass(String ldapBindPass) {
+<span class="fc" id="L163">		this.ldapBindPass = ldapBindPass;</span>
+<span class="fc" id="L164">	}</span>
+
+	public boolean isLdapDisableGroupAuthorization() {
+<span class="nc" id="L167">		return ldapDisableGroupAuthorization;</span>
+	}
+
+	public void setLdapDisableGroupAuthorization(boolean ldapDisableGroupAuthorization) {
+<span class="nc" id="L171">		this.ldapDisableGroupAuthorization = ldapDisableGroupAuthorization;</span>
+<span class="nc" id="L172">	}</span>
+
+	public String getLdapUserSearchFilter() {
+<span class="nc" id="L175">		return ldapUserSearchFilter;</span>
+	}
+
+	public void setLdapUserSearchFilter(String ldapUserSearchFilter) {
+<span class="nc" id="L179">		this.ldapUserSearchFilter = ldapUserSearchFilter;</span>
+<span class="nc" id="L180">	}</span>
+
+	public String getLdapManagerDn() {
+<span class="nc" id="L183">		return ldapManagerDn;</span>
+	}
+
+	public void setLdapManagerDn(String ldapManagerDn) {
+<span class="nc" id="L187">		this.ldapManagerDn = ldapManagerDn;</span>
+<span class="nc" id="L188">	}</span>
+
+	public String getLdapManagerPassword() {
+<span class="nc" id="L191">		return ldapManagerPassword;</span>
+	}
+
+	public void setLdapManagerPassword(String ldapManagerPassword) {
+<span class="nc" id="L195">		this.ldapManagerPassword = ldapManagerPassword;</span>
+<span class="nc" id="L196">	}</span>
+
+	@PostConstruct
+	public void applyDefaultsIfNeeded() {
+<span class="fc bfc" id="L200" title="All 2 branches covered.">		if (getSecret() == null) {</span>
+<span class="fc" id="L201">			LOGGER.info(&quot;No JWT secret found in configuration, generating random secret by default.&quot;);</span>
+<span class="fc" id="L202">			setSecret(UUID.randomUUID().toString().replace(&quot;-&quot;, &quot;&quot;));</span>
+		}
+
+<span class="fc bfc" id="L205" title="All 2 branches covered.">		if (getExpirationTime() == null) {</span>
+<span class="fc" id="L206">			LOGGER.info(&quot;No JWT expiration time found in configuration, setting to 30 minutes.&quot;);</span>
+<span class="fc" id="L207">			setExpirationTime((long) 1000 * 60 * 30);</span>
+		}
+
+<span class="fc bfc" id="L210" title="All 2 branches covered.">		if (CollectionUtils.isEmpty(authenticationProviders)) {</span>
+<span class="fc" id="L211">			authenticationProviders.add(AuthType.STANDARD);</span>
+		}
+<span class="fc" id="L213">	}</span>
+
+	public String getUserEid() {
+<span class="nc" id="L216">		return userEid;</span>
+	}
+
+	public void setUserEid(String userEid) {
+<span class="nc" id="L220">		this.userEid = userEid;</span>
+<span class="nc" id="L221">	}</span>
+
+	public String getUserEmail() {
+<span class="nc" id="L224">		return userEmail;</span>
+	}
+
+	public void setUserEmail(String userEmail) {
+<span class="nc" id="L228">		this.userEmail = userEmail;</span>
+<span class="nc" id="L229">	}</span>
+
+	public String getUserFirstName() {
+<span class="nc" id="L232">		return userFirstName;</span>
+	}
+
+	public void setUserFirstName(String userFirstName) {
+<span class="nc" id="L236">		this.userFirstName = userFirstName;</span>
+<span class="nc" id="L237">	}</span>
+
+	public String getUserLastName() {
+<span class="nc" id="L240">		return userLastName;</span>
+	}
+
+	public void setUserLastName(String userLastName) {
+<span class="nc" id="L244">		this.userLastName = userLastName;</span>
+<span class="nc" id="L245">	}</span>
+
+	public String getUserMiddelInitials() {
+<span class="nc" id="L248">		return userMiddelInitials;</span>
+	}
+
+	public void setUserMiddelInitials(String userMiddelInitials) {
+<span class="nc" id="L252">		this.userMiddelInitials = userMiddelInitials;</span>
+<span class="nc" id="L253">	}</span>
+
+	public String getUserDisplayName() {
+<span class="nc" id="L256">		return userDisplayName;</span>
+	}
+
+	public void setUserDisplayName(String userDisplayName) {
+<span class="nc" id="L260">		this.userDisplayName = userDisplayName;</span>
+<span class="nc" id="L261">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

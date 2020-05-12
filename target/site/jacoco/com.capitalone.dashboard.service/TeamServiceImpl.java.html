@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TeamServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.service</a> &gt; <span class="el_source">TeamServiceImpl.java</span></div><h1>TeamServiceImpl.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.service;
+
+import com.capitalone.dashboard.model.Collector;
+import com.capitalone.dashboard.model.CollectorItem;
+import com.capitalone.dashboard.model.CollectorType;
+import com.capitalone.dashboard.model.Component;
+import com.capitalone.dashboard.model.DataResponse;
+import com.capitalone.dashboard.model.Team;
+import com.capitalone.dashboard.repository.CollectorRepository;
+import com.capitalone.dashboard.repository.ComponentRepository;
+import com.capitalone.dashboard.repository.TeamRepository;
+import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service
+public class TeamServiceImpl implements TeamService {
+
+    private final ComponentRepository componentRepository;
+    private final TeamRepository teamRepository;
+    private final CollectorRepository collectorRepository;
+
+    /**
+     * Default autowired constructor for repositories
+     *
+     * @param componentRepository
+     *            Repository containing components used by the UI (populated by
+     *            UI)
+     * @param collectorRepository
+     *            Repository containing all registered collectors
+     * @param teamRepository
+     *            Repository containing all scopes
+     */
+    @Autowired
+    public TeamServiceImpl(ComponentRepository componentRepository,
+                            CollectorRepository collectorRepository,
+<span class="fc" id="L41">                           TeamRepository teamRepository) {</span>
+<span class="fc" id="L42">        this.componentRepository = componentRepository;</span>
+<span class="fc" id="L43">        this.teamRepository = teamRepository;</span>
+<span class="fc" id="L44">        this.collectorRepository = collectorRepository;</span>
+<span class="fc" id="L45">    }</span>
+
+    /**
+     * Retrieves all unique scopes
+     *
+     * @return A data response list of type Scope containing all unique scopes
+     */
+    @Override
+    public Iterable&lt;Team&gt; getAllTeams() {
+        // Get all available teams
+<span class="nc" id="L55">        Iterable&lt;Team&gt; teams = teamRepository.findAll();</span>
+
+<span class="nc bnc" id="L57" title="All 2 branches missed.">        for (Team team : teams) {</span>
+<span class="nc" id="L58">            Collector collector = collectorRepository</span>
+<span class="nc" id="L59">                    .findOne(team.getCollectorId());</span>
+<span class="nc" id="L60">            team.setCollector(collector);</span>
+<span class="nc" id="L61">        }</span>
+
+<span class="nc" id="L63">        return teams;</span>
+    }
+
+    /**
+     * Retrieves the scope information for a given scope source system ID
+     *
+     * @param componentId
+     *            The ID of the related UI component that will reference
+     *            collector item content from this collector
+     * @param teamId
+     *            A given scope's source-system ID
+     *
+     * @return A data response list of type Scope containing all data for a
+     *         given scope source-system ID
+     */
+    @Override
+    public DataResponse&lt;Team&gt; getTeam(ObjectId componentId,
+                                              String teamId) {
+<span class="fc" id="L81">        Component component = componentRepository.findOne(componentId);</span>
+<span class="fc" id="L82">        CollectorItem item = component.getCollectorItems()</span>
+<span class="fc" id="L83">                .get(CollectorType.AgileTool).get(0);</span>
+
+        // Get one scope by Id
+<span class="fc" id="L86">        Team team = teamRepository.findByTeamId(teamId);</span>
+
+<span class="fc" id="L88">        Collector collector = collectorRepository</span>
+<span class="fc" id="L89">                .findOne(item.getCollectorId());</span>
+
+<span class="fc" id="L91">        return new DataResponse&lt;&gt;(team, collector.getLastExecuted());</span>
+    }
+
+    /**
+     * Retrieves the scope information for a given scope source system ID
+     *
+     * @param collectorId
+     *
+     * @return teams
+     */
+    @Override
+    public List&lt;Team&gt;  getTeamsByCollector(ObjectId collectorId) {
+<span class="nc" id="L103">        List&lt;Team&gt; teams = teamRepository.findByCollectorId(collectorId);</span>
+
+<span class="nc" id="L105">        return teams;</span>
+    }
+
+    /**
+     * Retrieves the team information for a given collectorId, teamName, pageable
+     *
+     * @param collectorId, teamName, pageable
+     *
+     * @return teams
+     */
+    @Override
+    public Page&lt;Team&gt; getTeamByCollectorWithFilter(ObjectId collectorId, String teamName, Pageable pageable) {
+<span class="nc" id="L117">        Page&lt;Team&gt; teams = teamRepository.findAllByCollectorIdAndNameContainingIgnoreCase(collectorId,teamName,pageable);</span>
+<span class="nc" id="L118">        return teams;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

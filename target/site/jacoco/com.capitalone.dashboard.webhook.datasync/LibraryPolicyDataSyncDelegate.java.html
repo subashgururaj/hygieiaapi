@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LibraryPolicyDataSyncDelegate.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.webhook.datasync</a> &gt; <span class="el_source">LibraryPolicyDataSyncDelegate.java</span></div><h1>LibraryPolicyDataSyncDelegate.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.webhook.datasync;
+
+import com.capitalone.dashboard.model.Collector;
+import com.capitalone.dashboard.model.CollectorItem;
+import com.capitalone.dashboard.model.CollectorType;
+import com.capitalone.dashboard.model.Component;
+import com.capitalone.dashboard.model.LibraryPolicyResult;
+import com.capitalone.dashboard.request.DataSyncResponse;
+import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.IterableUtils;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.bson.types.ObjectId;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+public class LibraryPolicyDataSyncDelegate {
+<span class="fc" id="L24">    private static final Log LOG = LogFactory.getLog(LibraryPolicyDataSyncDelegate.class);</span>
+    private  DataSyncServiceImpl dataSyncServiceImpl;
+    private DataSyncUtils dataSyncUtils;
+
+<span class="fc" id="L28">    public LibraryPolicyDataSyncDelegate(DataSyncServiceImpl dataSyncServiceImpl,DataSyncUtils dataSyncUtils) {</span>
+<span class="fc" id="L29">        this.dataSyncServiceImpl = dataSyncServiceImpl;</span>
+<span class="fc" id="L30">        this.dataSyncUtils = dataSyncUtils;</span>
+<span class="fc" id="L31">    }</span>
+
+    public DataSyncResponse clean(Collector collector) {
+<span class="fc" id="L34">        int pages = dataSyncUtils.pages(collector);</span>
+<span class="fc" id="L35">        String collectorName = collector.getName();</span>
+<span class="fc" id="L36">        List&lt;CollectorItem&gt; collectorItems = dataSyncUtils.getAllCollectorItems(collector,pages);</span>
+<span class="pc bpc" id="L37" title="1 of 2 branches missed.">        if (CollectionUtils.isEmpty(collectorItems)) return dataSyncUtils.warn(collectorName,&quot;No collector-items found&quot;);</span>
+<span class="fc" id="L38">        int componentCount = 0;</span>
+<span class="fc" id="L39">        int collectorItemsCount = 0;</span>
+<span class="fc" id="L40">        List&lt;String&gt; componentIds = new ArrayList&lt;&gt;();</span>
+<span class="pc bpc" id="L41" title="1 of 2 branches missed.">        for (int idx = 0; idx &lt;= collectorItems.size(); idx++) {</span>
+<span class="fc bfc" id="L42" title="All 2 branches covered.">            if(idx == collectorItems.size()) break;</span>
+<span class="fc" id="L43">            Iterable&lt;CollectorItem&gt; suspects = dataSyncUtils.findAllCollectorItemsByOptions(collectorItems.get(idx), collector);</span>
+<span class="pc bpc" id="L44" title="1 of 2 branches missed.">            if (IterableUtils.isEmpty(suspects)) continue;</span>
+<span class="fc" id="L45">                List&lt;LibraryPolicyResult&gt; lps = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L46">                List&lt;Component&gt; components = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L47">                suspects.forEach(suspect -&gt; {</span>
+<span class="fc" id="L48">                    LibraryPolicyResult libraryPolicyResult = dataSyncServiceImpl.getLibraryPolicyResultsRepository().findTopByCollectorItemIdOrderByTimestampDesc(suspect.getId());</span>
+<span class="fc" id="L49">                    lps.add(libraryPolicyResult);</span>
+<span class="fc" id="L50">                    List&lt;Component&gt; cs = dataSyncServiceImpl.getComponentRepository().findByLibraryPolicyCollectorItems(suspect.getId());</span>
+<span class="fc" id="L51">                    components.addAll(cs);</span>
+<span class="fc" id="L52">                });</span>
+<span class="fc" id="L53">                LOG.info(&quot;collectorItem run +++&quot; + idx + &quot; of &quot; + collectorItems.size());</span>
+<span class="pc bpc" id="L54" title="1 of 2 branches missed.">                if (!CollectionUtils.isEmpty(lps)) {</span>
+<span class="fc" id="L55">                    List&lt;LibraryPolicyResult&gt; lp = lps.stream().filter(Objects::nonNull).collect(Collectors.toList());</span>
+<span class="fc" id="L56">                    lp.sort(Comparator.comparing(LibraryPolicyResult::getTimestamp).reversed());</span>
+<span class="fc" id="L57">                    LibraryPolicyResult libraryPolicyResult = lp.stream().filter(Objects::nonNull).findFirst().orElse(null);</span>
+<span class="pc bpc" id="L58" title="1 of 2 branches missed.">                    if (Objects.nonNull(libraryPolicyResult)) {</span>
+<span class="fc" id="L59">                        CollectorItem collectorItem = dataSyncServiceImpl.getCollectorItemRepository().findOne(libraryPolicyResult.getCollectorItemId());</span>
+<span class="fc" id="L60">                        List&lt;CollectorItem&gt; suspectCollectorItems = dataSyncUtils.deleteCollectorItems(collectorItems,collectorItem,suspects);</span>
+<span class="fc" id="L61">                        collectorItemsCount += suspectCollectorItems.size();</span>
+<span class="pc bpc" id="L62" title="1 of 2 branches missed.">                        if (CollectionUtils.isEmpty(components)) continue;</span>
+<span class="fc" id="L63">                        components.forEach(component -&gt; {</span>
+<span class="fc" id="L64">                            componentIds.add(component.getId().toString());</span>
+<span class="fc" id="L65">                        });</span>
+<span class="fc" id="L66">                        componentCount += components.size();</span>
+<span class="fc" id="L67">                        dataSyncUtils.updateComponents(collector,components,collectorItem,CollectorType.LibraryPolicy);</span>
+<span class="fc" id="L68">                    } else {</span>
+<span class="nc" id="L69">                        componentCount = dataSyncUtils.clearDuplicateCollectorItemsAndUpdateComponents(collectorItems, componentCount, suspects, components,collector,CollectorType.LibraryPolicy);</span>
+                    }
+<span class="fc" id="L71">                } else {</span>
+<span class="nc" id="L72">                    componentCount = dataSyncUtils.clearDuplicateCollectorItemsAndUpdateComponents(collectorItems, componentCount, suspects, components,collector,CollectorType.LibraryPolicy);</span>
+                }
+
+        }
+<span class="fc" id="L76">        return new DataSyncResponse(componentIds,collectorItemsCount,collectorName + &quot; refresh Successful==&gt;&gt; Updated &quot; + componentCount + &quot; components and &quot; + collectorItemsCount + &quot; collectorItems.&quot;);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

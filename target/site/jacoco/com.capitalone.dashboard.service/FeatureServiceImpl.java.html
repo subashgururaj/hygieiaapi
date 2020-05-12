@@ -1,0 +1,510 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FeatureServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.service</a> &gt; <span class="el_source">FeatureServiceImpl.java</span></div><h1>FeatureServiceImpl.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.service;
+
+import com.capitalone.dashboard.model.Collector;
+import com.capitalone.dashboard.model.CollectorItem;
+import com.capitalone.dashboard.model.CollectorType;
+import com.capitalone.dashboard.model.Component;
+import com.capitalone.dashboard.model.DataResponse;
+import com.capitalone.dashboard.model.Feature;
+import com.capitalone.dashboard.model.QScopeOwner;
+import com.capitalone.dashboard.model.SprintEstimate;
+import com.capitalone.dashboard.repository.CollectorRepository;
+import com.capitalone.dashboard.repository.ComponentRepository;
+import com.capitalone.dashboard.repository.FeatureRepository;
+import com.capitalone.dashboard.util.FeatureCollectorConstants;
+import com.mysema.query.BooleanBuilder;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
+
+import javax.xml.bind.DatatypeConverter;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.TimeZone;
+
+/**
+ * The feature service.
+ * &lt;p&gt;
+ * Features can currently belong to 2 sprint types: scrum and kanban. In order to be considered part of the sprint
+ * the feature must not be deleted and must have an &quot;active&quot; sprint asset state if the sprint is set. The following
+ * logic also applies:
+ * &lt;p&gt;
+ * A feature is part of a scrum sprint if any of the following are true:
+ * &lt;ol&gt;
+ * &lt;li&gt;the feature has a sprint set that has start &lt;= now &lt;= end and end &lt; EOT (9999-12-31T59:59:59.999999)&lt;/li&gt;
+ * &lt;/ol&gt;
+ * &lt;p&gt;
+ * A feature is part of a kanban sprint if any of the following are true:
+ * &lt;ol&gt;
+ * &lt;li&gt;the feature does not have a sprint set&lt;/li&gt;
+ * &lt;li&gt;the feature has a sprint set that does not have an end date&lt;/li&gt;
+ * &lt;li&gt;the feature has a sprint set that has an end date &gt;= EOT (9999-12-31T59:59:59.999999)&lt;/li&gt;
+ * &lt;/ol&gt;
+ */
+@Service
+public class FeatureServiceImpl implements FeatureService {
+<span class="fc" id="L56">	private static final Log LOG = LogFactory.getLog(FeatureServiceImpl.class);</span>
+
+	private final ComponentRepository componentRepository;
+	private final FeatureRepository featureRepository;
+	private final CollectorRepository collectorRepository;
+
+	/**
+	 * Default autowired constructor for repositories
+	 *
+	 * @param componentRepository
+	 *            Repository containing components used by the UI (populated by
+	 *            UI)
+	 * @param collectorRepository
+	 *            Repository containing all registered collectors
+	 * @param featureRepository
+	 *            Repository containing all features
+	 */
+	@Autowired
+	public FeatureServiceImpl(ComponentRepository componentRepository,
+<span class="fc" id="L75">			CollectorRepository collectorRepository, FeatureRepository featureRepository) {</span>
+<span class="fc" id="L76">		this.componentRepository = componentRepository;</span>
+<span class="fc" id="L77">		this.featureRepository = featureRepository;</span>
+<span class="fc" id="L78">		this.collectorRepository = collectorRepository;</span>
+<span class="fc" id="L79">	}</span>
+
+	/**
+	 * Retrieves a single story based on a back-end story number
+	 *
+	 * @param componentId
+	 *            The ID of the related UI component that will reference
+	 *            collector item content from this collector
+	 * @param storyNumber
+	 *            A back-end story ID used by a source system
+	 * @return A data response list of type Feature containing a single story
+	 */
+	@Override
+	public DataResponse&lt;List&lt;Feature&gt;&gt; getStory(ObjectId componentId, String storyNumber) {
+<span class="nc" id="L93">		Component component = componentRepository.findOne(componentId);</span>
+<span class="nc bnc" id="L94" title="All 4 branches missed.">		if ((component == null) || CollectionUtils.isEmpty(component.getCollectorItems())</span>
+				|| CollectionUtils
+<span class="nc bnc" id="L96" title="All 2 branches missed.">						.isEmpty(component.getCollectorItems().get(CollectorType.AgileTool))</span>
+<span class="nc bnc" id="L97" title="All 2 branches missed.">				|| (component.getCollectorItems().get(CollectorType.AgileTool).get(0) == null)) {</span>
+<span class="nc" id="L98">			return getEmptyLegacyDataResponse();</span>
+		}
+
+<span class="nc" id="L101">		CollectorItem item = component.getCollectorItems().get(CollectorType.AgileTool).get(0);</span>
+
+<span class="nc" id="L103">		QScopeOwner team = new QScopeOwner(&quot;team&quot;);</span>
+<span class="nc" id="L104">		BooleanBuilder builder = new BooleanBuilder();</span>
+<span class="nc" id="L105">		builder.and(team.collectorItemId.eq(item.getId()));</span>
+
+		// Get one story based on story number, based on component
+<span class="nc" id="L108">		List&lt;Feature&gt; story = featureRepository.getStoryByNumber(storyNumber);</span>
+<span class="nc" id="L109">		Collector collector = collectorRepository.findOne(item.getCollectorId());</span>
+<span class="nc" id="L110">		return new DataResponse&lt;&gt;(story, collector.getLastExecuted());</span>
+	}
+
+	/**
+	 * Retrieves all stories for a given team and their current sprint
+	 *
+	 * @param componentId
+	 *            The ID of the related UI component that will reference
+	 *            collector item content from this collector
+	 * @param teamId
+	 *            A given scope-owner's source-system ID
+	 * @return A data response list of type Feature containing all features for
+	 *         the given team and current sprint
+	 */
+	@Override
+	public DataResponse&lt;List&lt;Feature&gt;&gt; getRelevantStories(ObjectId componentId, String teamId, String projectId,
+			Optional&lt;String&gt; agileType) {
+<span class="fc" id="L127">		Component component = componentRepository.findOne(componentId);</span>
+<span class="pc bpc" id="L128" title="2 of 4 branches missed.">		if ((component == null) || CollectionUtils.isEmpty(component.getCollectorItems())</span>
+				|| CollectionUtils
+<span class="pc bpc" id="L130" title="1 of 2 branches missed.">						.isEmpty(component.getCollectorItems().get(CollectorType.AgileTool))</span>
+<span class="pc bpc" id="L131" title="1 of 2 branches missed.">				|| (component.getCollectorItems().get(CollectorType.AgileTool).get(0) == null)) {</span>
+<span class="nc" id="L132">			return getEmptyLegacyDataResponse();</span>
+		}
+
+<span class="fc" id="L135">		CollectorItem item = component.getCollectorItems().get(CollectorType.AgileTool).get(0);</span>
+
+<span class="fc" id="L137">		QScopeOwner team = new QScopeOwner(&quot;team&quot;);</span>
+<span class="fc" id="L138">		BooleanBuilder builder = new BooleanBuilder();</span>
+<span class="fc" id="L139">		builder.and(team.collectorItemId.eq(item.getId()));</span>
+
+		// Get teamId first from available collector item, based on component
+<span class="pc bpc" id="L142" title="1 of 2 branches missed.">		List&lt;Feature&gt; relevantStories = getFeaturesForCurrentSprints(teamId, projectId, item.getCollectorId(), agileType.isPresent()? agileType.get() : null, false);</span>
+
+<span class="fc" id="L144">		Collector collector = collectorRepository.findOne(item.getCollectorId());</span>
+
+<span class="fc" id="L146">		return new DataResponse&lt;&gt;(relevantStories, collector.getLastExecuted());</span>
+	}
+
+	/**
+	 * Retrieves all unique super features and their total sub feature estimates
+	 * for a given team and their current sprint
+	 *
+	 * @param componentId
+	 *            The ID of the related UI component that will reference
+	 *            collector item content from this collector
+	 * @param teamId
+	 *            A given scope-owner's source-system ID
+	 * @return A data response list of type Feature containing the unique
+	 *         features plus their sub features' estimates associated to the
+	 *         current sprint and team
+	 */
+	@Override
+	public DataResponse&lt;List&lt;Feature&gt;&gt; getFeatureEpicEstimates(ObjectId componentId, String teamId, String projectId,
+			Optional&lt;String&gt; agileType, Optional&lt;String&gt; estimateMetricType) {
+<span class="fc" id="L165">		Component component = componentRepository.findOne(componentId);</span>
+
+<span class="pc bpc" id="L167" title="2 of 4 branches missed.">		if ((component == null) || CollectionUtils.isEmpty(component.getCollectorItems())</span>
+				|| CollectionUtils
+<span class="pc bpc" id="L169" title="1 of 2 branches missed.">						.isEmpty(component.getCollectorItems().get(CollectorType.AgileTool))</span>
+<span class="pc bpc" id="L170" title="1 of 2 branches missed.">				|| (component.getCollectorItems().get(CollectorType.AgileTool).get(0) == null)) {</span>
+<span class="nc" id="L171">			return getEmptyLegacyDataResponse();</span>
+		}
+
+<span class="fc" id="L174">		CollectorItem item = component.getCollectorItems().get(CollectorType.AgileTool).get(0);</span>
+		
+<span class="pc bpc" id="L176" title="1 of 2 branches missed.">		List&lt;Feature&gt; relevantFeatureEstimates = getFeaturesForCurrentSprints(teamId, projectId, item.getCollectorId(), agileType.isPresent()? agileType.get() : null, true);</span>
+		
+		// epicID : epic information (in the form of a Feature object)
+<span class="fc" id="L179">		Map&lt;String, Feature&gt; epicIDToEpicFeatureMap = new HashMap&lt;&gt;();</span>
+		
+<span class="fc bfc" id="L181" title="All 2 branches covered.">		for (Feature tempRs : relevantFeatureEstimates) {</span>
+<span class="fc" id="L182">			String epicID = tempRs.getsEpicID();</span>
+			
+<span class="pc bpc" id="L184" title="1 of 2 branches missed.">			if (StringUtils.isEmpty(epicID))</span>
+<span class="nc" id="L185">				continue;</span>
+			
+<span class="fc" id="L187">			Feature feature = epicIDToEpicFeatureMap.get(epicID);</span>
+<span class="fc bfc" id="L188" title="All 2 branches covered.">			if (feature == null) {</span>
+<span class="fc" id="L189">				feature = new Feature();</span>
+<span class="fc" id="L190">				feature.setId(null);</span>
+<span class="fc" id="L191">				feature.setsEpicID(epicID);</span>
+<span class="fc" id="L192">				feature.setsEpicNumber(tempRs.getsEpicNumber());</span>
+<span class="fc" id="L193">				feature.setsEpicUrl(tempRs.getsEpicUrl());</span>
+<span class="fc" id="L194">				feature.setsEpicName(tempRs.getsEpicName());</span>
+<span class="fc" id="L195">				feature.setsEpicAssetState(tempRs.getsEpicAssetState());</span>
+<span class="fc" id="L196">				feature.setsEstimate(&quot;0&quot;);</span>
+<span class="fc" id="L197">				epicIDToEpicFeatureMap.put(epicID, feature);</span>
+			}
+			
+			// if estimateMetricType is hours accumulate time estimate in minutes for better precision ... divide by 60 later
+<span class="fc" id="L201">			int estimate = getEstimate(tempRs, estimateMetricType);</span>
+			
+<span class="fc" id="L203">			feature.setsEstimate(String.valueOf(Integer.valueOf(feature.getsEstimate()) + estimate));</span>
+<span class="fc" id="L204">		}</span>
+		
+<span class="fc bfc" id="L206" title="All 2 branches covered.">		if (isEstimateTime(estimateMetricType)) {</span>
+			// time estimate is in minutes but we want to return in hours
+<span class="fc bfc" id="L208" title="All 2 branches covered.">			for (Feature f : epicIDToEpicFeatureMap.values()) {</span>
+<span class="fc" id="L209">				f.setsEstimate(String.valueOf(Integer.valueOf(f.getsEstimate()) / 60));</span>
+<span class="fc" id="L210">			}</span>
+		}
+		
+<span class="fc" id="L213">		Collector collector = collectorRepository.findOne(item.getCollectorId());</span>
+<span class="fc" id="L214">		return new DataResponse&lt;&gt;(new ArrayList&lt;&gt;(epicIDToEpicFeatureMap.values()), collector.getLastExecuted());</span>
+	}
+	
+	@Override
+	public DataResponse&lt;SprintEstimate&gt; getAggregatedSprintEstimates(ObjectId componentId,
+			String teamId, String projectId, Optional&lt;String&gt; agileType, Optional&lt;String&gt; estimateMetricType) {
+<span class="fc" id="L220">		Component component = componentRepository.findOne(componentId);</span>
+<span class="pc bpc" id="L221" title="2 of 4 branches missed.">		if ((component == null) || CollectionUtils.isEmpty(component.getCollectorItems())</span>
+				|| CollectionUtils
+<span class="pc bpc" id="L223" title="1 of 2 branches missed.">						.isEmpty(component.getCollectorItems().get(CollectorType.AgileTool))</span>
+<span class="pc bpc" id="L224" title="1 of 2 branches missed.">				|| (component.getCollectorItems().get(CollectorType.AgileTool).get(0) == null)) {</span>
+<span class="nc" id="L225">			return new DataResponse&lt;SprintEstimate&gt;(new SprintEstimate(), 0);</span>
+		}
+
+<span class="fc" id="L228">		CollectorItem item = component.getCollectorItems().get(CollectorType.AgileTool).get(0);</span>
+<span class="fc" id="L229">		Collector collector = collectorRepository.findOne(item.getCollectorId());</span>
+		
+<span class="fc" id="L231">		SprintEstimate estimate = getSprintEstimates(teamId, projectId, item.getCollectorId(), agileType, estimateMetricType);</span>
+<span class="fc" id="L232">		return new DataResponse&lt;&gt;(estimate, collector.getLastExecuted());</span>
+	}
+
+	/**
+	 * Retrieves estimate total of all features in the current sprint and for
+	 * the current team.
+	 *
+	 * @param componentId
+	 *            The ID of the related UI component that will reference
+	 *            collector item content from this collector
+	 * @param teamId
+	 *            A given scope-owner's source-system ID
+	 * @return A data response list of type Feature containing the total
+	 *         estimate number for all features
+	 */
+	@Override
+	@Deprecated 
+	public DataResponse&lt;List&lt;Feature&gt;&gt; getTotalEstimate(ObjectId componentId, String teamId,
+			Optional&lt;String&gt; agileType, Optional&lt;String&gt; estimateMetricType) {
+<span class="nc" id="L251">		Component component = componentRepository.findOne(componentId);</span>
+
+<span class="nc bnc" id="L253" title="All 4 branches missed.">		if ((component == null) || CollectionUtils.isEmpty(component.getCollectorItems())</span>
+				|| CollectionUtils
+<span class="nc bnc" id="L255" title="All 2 branches missed.">						.isEmpty(component.getCollectorItems().get(CollectorType.AgileTool))</span>
+<span class="nc bnc" id="L256" title="All 2 branches missed.">				|| (component.getCollectorItems().get(CollectorType.AgileTool).get(0) == null)) {</span>
+<span class="nc" id="L257">			return getEmptyLegacyDataResponse();</span>
+		}
+
+<span class="nc" id="L260">		CollectorItem item = component.getCollectorItems().get(CollectorType.AgileTool).get(0);</span>
+		
+<span class="nc" id="L262">		SprintEstimate estimate = getSprintEstimates(teamId, FeatureCollectorConstants.PROJECT_ID_ANY, item.getCollectorId(), agileType, estimateMetricType);</span>
+		
+<span class="nc" id="L264">		List&lt;Feature&gt; list = Collections.singletonList(new Feature());</span>
+<span class="nc" id="L265">		list.get(0).setsEstimate(Integer.toString(estimate.getTotalEstimate()));</span>
+		
+<span class="nc" id="L267">		Collector collector = collectorRepository.findOne(item.getCollectorId());</span>
+<span class="nc" id="L268">		return new DataResponse&lt;&gt;(list, collector.getLastExecuted());</span>
+	}
+
+	/**
+	 * Retrieves estimate in-progress of all features in the current sprint and
+	 * for the current team.
+	 *
+	 * @param componentId
+	 *            The ID of the related UI component that will reference
+	 *            collector item content from this collector
+	 * @param teamId
+	 *            A given scope-owner's source-system ID
+	 * @return A data response list of type Feature containing the in-progress
+	 *         estimate number for all features
+	 */
+	@Override
+	@Deprecated
+	public DataResponse&lt;List&lt;Feature&gt;&gt; getInProgressEstimate(ObjectId componentId, String teamId,
+			Optional&lt;String&gt; agileType, Optional&lt;String&gt; estimateMetricType) {
+<span class="nc" id="L287">		Component component = componentRepository.findOne(componentId);</span>
+
+<span class="nc bnc" id="L289" title="All 4 branches missed.">		if ((component == null) || CollectionUtils.isEmpty(component.getCollectorItems())</span>
+				|| CollectionUtils
+<span class="nc bnc" id="L291" title="All 2 branches missed.">						.isEmpty(component.getCollectorItems().get(CollectorType.AgileTool))</span>
+<span class="nc bnc" id="L292" title="All 2 branches missed.">				|| (component.getCollectorItems().get(CollectorType.AgileTool).get(0) == null)) {</span>
+<span class="nc" id="L293">			return getEmptyLegacyDataResponse();</span>
+		}
+
+<span class="nc" id="L296">		CollectorItem item = component.getCollectorItems().get(CollectorType.AgileTool).get(0);</span>
+		
+<span class="nc" id="L298">		SprintEstimate estimate = getSprintEstimates(teamId, FeatureCollectorConstants.PROJECT_ID_ANY, item.getCollectorId(), agileType, estimateMetricType);</span>
+		
+<span class="nc" id="L300">		List&lt;Feature&gt; list = Collections.singletonList(new Feature());</span>
+<span class="nc" id="L301">		list.get(0).setsEstimate(Integer.toString(estimate.getInProgressEstimate()));</span>
+		
+<span class="nc" id="L303">		Collector collector = collectorRepository.findOne(item.getCollectorId());</span>
+<span class="nc" id="L304">		return new DataResponse&lt;&gt;(list, collector.getLastExecuted());</span>
+	}
+
+	/**
+	 * Retrieves estimate done of all features in the current sprint and for the
+	 * current team.
+	 *
+	 * @param componentId
+	 *            The ID of the related UI component that will reference
+	 *            collector item content from this collector
+	 * @param teamId
+	 *            A given scope-owner's source-system ID
+	 * @return A data response list of type Feature containing the done estimate
+	 *         number for all features
+	 */
+	@Override
+	@Deprecated
+	public DataResponse&lt;List&lt;Feature&gt;&gt; getDoneEstimate(ObjectId componentId, String teamId,
+			Optional&lt;String&gt; agileType, Optional&lt;String&gt; estimateMetricType) {
+<span class="nc" id="L323">		Component component = componentRepository.findOne(componentId);</span>
+
+<span class="nc bnc" id="L325" title="All 4 branches missed.">		if ((component == null) || CollectionUtils.isEmpty(component.getCollectorItems())</span>
+				|| CollectionUtils
+<span class="nc bnc" id="L327" title="All 2 branches missed.">						.isEmpty(component.getCollectorItems().get(CollectorType.AgileTool))</span>
+<span class="nc bnc" id="L328" title="All 2 branches missed.">				|| (component.getCollectorItems().get(CollectorType.AgileTool).get(0) == null)) {</span>
+<span class="nc" id="L329">			return getEmptyLegacyDataResponse();</span>
+		}
+
+<span class="nc" id="L332">		CollectorItem item = component.getCollectorItems().get(CollectorType.AgileTool).get(0);</span>
+		
+<span class="nc" id="L334">		SprintEstimate estimate = getSprintEstimates(teamId, FeatureCollectorConstants.PROJECT_ID_ANY, item.getCollectorId(), agileType, estimateMetricType);</span>
+		
+<span class="nc" id="L336">		List&lt;Feature&gt; list = Collections.singletonList(new Feature());</span>
+<span class="nc" id="L337">		list.get(0).setsEstimate(Integer.toString(estimate.getCompleteEstimate()));</span>
+		
+<span class="nc" id="L339">		Collector collector = collectorRepository.findOne(item.getCollectorId());</span>
+<span class="nc" id="L340">		return new DataResponse&lt;&gt;(list, collector.getLastExecuted());</span>
+	}
+
+	/**
+	 * Retrieves the current sprint's detail for a given team.
+	 *
+	 * @param componentId
+	 *            The ID of the related UI component that will reference
+	 *            collector item content from this collector
+	 * @param teamId
+	 *            A given scope-owner's source-system ID
+	 * @return A data response list of type Feature containing several relevant
+	 *         sprint fields for the current team's sprint
+	 */
+	@Override
+	public DataResponse&lt;List&lt;Feature&gt;&gt; getCurrentSprintDetail(ObjectId componentId, String teamId, String projectId,
+			Optional&lt;String&gt; agileType) {
+<span class="fc" id="L357">		Component component = componentRepository.findOne(componentId);</span>
+<span class="pc bpc" id="L358" title="2 of 4 branches missed.">		if ((component == null) || CollectionUtils.isEmpty(component.getCollectorItems())</span>
+				|| CollectionUtils
+<span class="pc bpc" id="L360" title="1 of 2 branches missed.">						.isEmpty(component.getCollectorItems().get(CollectorType.AgileTool))</span>
+<span class="pc bpc" id="L361" title="1 of 2 branches missed.">				|| (component.getCollectorItems().get(CollectorType.AgileTool).get(0) == null)) {</span>
+<span class="nc" id="L362">			return getEmptyLegacyDataResponse();</span>
+		}
+
+<span class="fc" id="L365">		CollectorItem item = component.getCollectorItems().get(CollectorType.AgileTool).get(0);</span>
+
+		// Get teamId first from available collector item, based on component
+<span class="pc bpc" id="L368" title="1 of 2 branches missed.">		List&lt;Feature&gt; sprintResponse = getFeaturesForCurrentSprints(teamId, projectId, item.getCollectorId(), agileType.isPresent()? agileType.get() : null, true);</span>
+
+<span class="fc" id="L370">		Collector collector = collectorRepository.findOne(item.getCollectorId());</span>
+<span class="fc" id="L371">		return new DataResponse&lt;&gt;(sprintResponse, collector.getLastExecuted());</span>
+	}
+	
+	@SuppressWarnings(&quot;PMD.NPathComplexity&quot;)
+	private SprintEstimate getSprintEstimates(String teamId, String projectId, ObjectId collectorId, Optional&lt;String&gt; agileType, Optional&lt;String&gt; estimateMetricType) {
+<span class="pc bpc" id="L376" title="1 of 2 branches missed.">		List&lt;Feature&gt; storyEstimates = getFeaturesForCurrentSprints(teamId, projectId, collectorId, agileType.isPresent()? agileType.get() : null, true);</span>
+
+<span class="fc" id="L378">		int totalEstimate = 0;</span>
+<span class="fc" id="L379">		int wipEstimate = 0;</span>
+<span class="fc" id="L380">		int doneEstimate = 0;</span>
+		
+<span class="fc bfc" id="L382" title="All 2 branches covered.">		for (Feature tempRs : storyEstimates) {</span>
+<span class="pc bpc" id="L383" title="1 of 2 branches missed.">			String tempStatus = tempRs.getsStatus() != null? tempRs.getsStatus().toLowerCase() : null;</span>
+
+			// if estimateMetricType is hours accumulate time estimate in minutes for better precision ... divide by 60 later
+<span class="fc" id="L386">			int estimate = getEstimate(tempRs, estimateMetricType);</span>
+			
+<span class="fc" id="L388">			totalEstimate += estimate;</span>
+<span class="pc bpc" id="L389" title="1 of 2 branches missed.">			if (tempStatus != null) {</span>
+<span class="fc bfc" id="L390" title="All 3 branches covered.">				switch (tempStatus) {</span>
+					case &quot;in progress&quot;:
+					case &quot;waiting&quot;:
+					case &quot;impeded&quot;:
+<span class="fc" id="L394">						wipEstimate += estimate;</span>
+<span class="fc" id="L395">					break;</span>
+					case &quot;done&quot;:
+					case &quot;accepted&quot;:
+<span class="fc" id="L398">						doneEstimate += estimate;</span>
+					break;
+				}
+			}
+<span class="fc" id="L402">		}</span>
+		
+
+<span class="fc" id="L405">		int openEstimate = totalEstimate - wipEstimate - doneEstimate;</span>
+		
+<span class="pc bpc" id="L407" title="1 of 2 branches missed.">		if (isEstimateTime(estimateMetricType)) {</span>
+			// time estimate is in minutes but we want to return in hours
+<span class="nc" id="L409">			totalEstimate /= 60;</span>
+<span class="nc" id="L410">			openEstimate /= 60;</span>
+<span class="nc" id="L411">			wipEstimate /= 60;</span>
+<span class="nc" id="L412">			doneEstimate /= 60;</span>
+		}
+		
+<span class="fc" id="L415">		SprintEstimate response = new SprintEstimate();</span>
+<span class="fc" id="L416">		response.setOpenEstimate(openEstimate);</span>
+<span class="fc" id="L417">		response.setInProgressEstimate(wipEstimate);</span>
+<span class="fc" id="L418">		response.setCompleteEstimate(doneEstimate);</span>
+<span class="fc" id="L419">		response.setTotalEstimate(totalEstimate);</span>
+
+<span class="fc" id="L421">		return response;</span>
+	}
+	
+	/**
+	 * Get the features that belong to the current sprints
+	 * 
+	 * @param teamId		the team id
+	 * @param agileType		the agile type. Defaults to &quot;scrum&quot; if null
+	 * @param minimal		if the resulting list of Features should be minimally populated (see queries for fields)
+	 * @return
+	 */
+	private List&lt;Feature&gt; getFeaturesForCurrentSprints(String teamId, String projectId, ObjectId collectorId, String agileType, boolean minimal) {
+<span class="fc" id="L433">		List&lt;Feature&gt; rt = new ArrayList&lt;Feature&gt;();</span>
+		
+<span class="fc" id="L435">		String now = getCurrentISODateTime();</span>
+		
+<span class="fc bfc" id="L437" title="All 2 branches covered.">		if ( FeatureCollectorConstants.SPRINT_KANBAN.equalsIgnoreCase(agileType)) {</span>
+			/* 
+			 * A feature is part of a kanban sprint if any of the following are true:
+			 *   - the feature does not have a sprint set
+			 *   - the feature has a sprint set that does not have an end date
+			 *   - the feature has a sprint set that has an end date &gt;= EOT (9999-12-31T59:59:59.999999)
+			 */
+<span class="fc" id="L444">		    rt.addAll(featureRepository.findByNullSprints(teamId, projectId, collectorId, minimal));</span>
+<span class="fc" id="L445">		    rt.addAll(featureRepository.findByUnendingSprints(teamId, projectId, collectorId, minimal));</span>
+		} else {
+			// default to scrum
+			/*
+			 * A feature is part of a scrum sprint if any of the following are true:
+			 *   - the feature has a sprint set that has start &lt;= now &lt;= end and end &lt; EOT (9999-12-31T59:59:59.999999)
+			 */
+<span class="fc" id="L452">		    rt.addAll(featureRepository.findByActiveEndingSprints(teamId, projectId, collectorId, now, minimal));</span>
+		}
+		
+<span class="fc" id="L455">		return rt;</span>
+	}
+
+	private DataResponse&lt;List&lt;Feature&gt;&gt; getEmptyLegacyDataResponse() {
+<span class="nc" id="L459">		Feature f = new Feature();</span>
+<span class="nc" id="L460">		List&lt;Feature&gt; l = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L461">		l.add(f);</span>
+<span class="nc" id="L462">		return new DataResponse&lt;&gt;(l, 0);</span>
+	}
+
+	/**
+	 * Retrieves the current system time stamp in ISO date time format. Because
+	 * this is not using SimpleTimeFormat, this should be thread safe.
+	 *
+	 * @return A string representation of the current date time stamp in ISO
+	 *         format from the current time zone
+	 */
+	private String getCurrentISODateTime() {
+<span class="fc" id="L473">		return DatatypeConverter.printDateTime(Calendar.getInstance(TimeZone.getTimeZone(&quot;UTC&quot;)));</span>
+	}
+	
+	private boolean isEstimateTime(Optional&lt;String&gt; estimateMetricType) {
+<span class="fc bfc" id="L477" title="All 4 branches covered.">		return estimateMetricType.isPresent() &amp;&amp; FeatureCollectorConstants.STORY_HOURS_ESTIMATE.equalsIgnoreCase(estimateMetricType.get());</span>
+	}
+	
+	private boolean isEstimateCount(Optional&lt;String&gt; estimateMetricType) {
+<span class="pc bpc" id="L481" title="1 of 4 branches missed.">        return estimateMetricType.isPresent() &amp;&amp; FeatureCollectorConstants.STORY_COUNT_ESTIMATE.equalsIgnoreCase(estimateMetricType.get());</span>
+    }
+	
+	private int getEstimate(Feature feature, Optional&lt;String&gt; estimateMetricType) {
+<span class="fc" id="L485">		int rt = 0;</span>
+		
+<span class="fc bfc" id="L487" title="All 2 branches covered.">		if (isEstimateTime(estimateMetricType)) {</span>
+<span class="pc bpc" id="L488" title="1 of 2 branches missed.">			if (feature.getsEstimateTime() != null) {</span>
+<span class="fc" id="L489">				rt = feature.getsEstimateTime().intValue();</span>
+			}
+<span class="pc bpc" id="L491" title="1 of 2 branches missed.">		} else if (isEstimateCount(estimateMetricType)) {</span>
+<span class="nc" id="L492">		    rt = 1;</span>
+		} else {
+			// default to story points since that should be the most common use case
+<span class="pc bpc" id="L495" title="1 of 2 branches missed.">			if (!StringUtils.isEmpty(feature.getsEstimate())) {</span>
+				try {
+<span class="fc" id="L497">					rt = Integer.parseInt(feature.getsEstimate());</span>
+				}
+<span class="nc" id="L499">				catch(NumberFormatException nfe) {</span>
+<span class="nc" id="L500">					rt = 0;</span>
+<span class="nc" id="L501">					LOG.error(&quot;Could not parse estimate for '&quot;+ feature.getsName()+ &quot;', number '&quot;+ feature.getsNumber()</span>
+<span class="nc" id="L502">							+ &quot;', have estimate: &quot;+ feature.getsEstimate(), nfe);</span>
+<span class="fc" id="L503">				}</span>
+			}
+		}
+		
+<span class="fc" id="L507">		return rt;</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

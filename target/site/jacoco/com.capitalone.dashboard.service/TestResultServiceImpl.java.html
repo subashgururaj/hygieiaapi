@@ -1,0 +1,643 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TestResultServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.service</a> &gt; <span class="el_source">TestResultServiceImpl.java</span></div><h1>TestResultServiceImpl.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.service;
+
+import com.capitalone.dashboard.misc.HygieiaException;
+import com.capitalone.dashboard.model.*;
+import com.capitalone.dashboard.model.quality.CucumberJsonReport;
+import com.capitalone.dashboard.model.quality.JunitXmlReport;
+import com.capitalone.dashboard.repository.CollectorRepository;
+import com.capitalone.dashboard.repository.ComponentRepository;
+import com.capitalone.dashboard.repository.TestResultRepository;
+import com.capitalone.dashboard.request.CollectorRequest;
+import com.capitalone.dashboard.request.PerfTestDataCreateRequest;
+import com.capitalone.dashboard.request.TestDataCreateRequest;
+import com.capitalone.dashboard.settings.ApiSettings;
+import com.capitalone.dashboard.util.TestResultConstants;
+import com.google.common.collect.Lists;
+import com.google.gson.Gson;
+import com.mysema.query.BooleanBuilder;
+import hygieia.transformer.CucumberJsonToTestCapabilityTransformer;
+import hygieia.transformer.JunitXmlToTestCapabilityTransformer;
+import org.apache.commons.lang.StringUtils;
+import org.bson.types.ObjectId;
+import org.joda.time.format.DateTimeFormat;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
+
+import javax.xml.bind.JAXBContext;
+import javax.xml.bind.JAXBException;
+import javax.xml.bind.Unmarshaller;
+import java.io.StringReader;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+@Service
+public class TestResultServiceImpl implements TestResultService {
+
+    private final TestResultRepository testResultRepository;
+    private final ComponentRepository componentRepository;
+    private final CollectorRepository collectorRepository;
+    private final CollectorService collectorService;
+    private final CmdbService cmdbService;
+    private final ApiSettings apiSettings;
+
+
+
+    @Autowired
+    public TestResultServiceImpl(TestResultRepository testResultRepository,
+                                 ComponentRepository componentRepository,
+                                 CollectorRepository collectorRepository,
+                                 CollectorService collectorService,
+                                 CmdbService cmdbService,
+<span class="fc" id="L60">                                 ApiSettings apiSettings) {</span>
+<span class="fc" id="L61">        this.testResultRepository = testResultRepository;</span>
+<span class="fc" id="L62">        this.componentRepository = componentRepository;</span>
+<span class="fc" id="L63">        this.collectorRepository = collectorRepository;</span>
+<span class="fc" id="L64">        this.collectorService = collectorService;</span>
+<span class="fc" id="L65">        this.cmdbService = cmdbService;</span>
+<span class="fc" id="L66">        this.apiSettings = apiSettings;</span>
+<span class="fc" id="L67">    }</span>
+
+    @Override
+    public DataResponse&lt;Iterable&lt;TestResult&gt;&gt; search(com.capitalone.dashboard.request.TestResultRequest request) {
+<span class="fc" id="L71">        Component component = componentRepository.findOne(request.getComponentId());</span>
+
+<span class="pc bpc" id="L73" title="1 of 4 branches missed.">        if ((component == null) || !component.getCollectorItems().containsKey(CollectorType.Test)) {</span>
+<span class="fc" id="L74">            return new DataResponse&lt;&gt;(null, 0L);</span>
+        }
+<span class="nc" id="L76">        List&lt;TestResult&gt; result = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L77">        validateAllCollectorItems(request, component, result);</span>
+        //One collector per Type. get(0) is hardcoded.
+<span class="nc bnc" id="L79" title="All 4 branches missed.">        if (!CollectionUtils.isEmpty(component.getCollectorItems().get(CollectorType.Test)) &amp;&amp; (component.getCollectorItems().get(CollectorType.Test).get(0) != null)) {</span>
+<span class="nc" id="L80">            Collector collector = collectorRepository.findOne(component.getCollectorItems().get(CollectorType.Test).get(0).getCollectorId());</span>
+<span class="nc bnc" id="L81" title="All 2 branches missed.">            if (collector != null) {</span>
+<span class="nc" id="L82">                return new DataResponse&lt;&gt;(pruneToDepth(result, request.getDepth()), collector.getLastExecuted());</span>
+            }
+        }
+
+<span class="nc" id="L86">        return new DataResponse&lt;&gt;(null, 0L);</span>
+    }
+
+
+
+    private void validateAllCollectorItems(com.capitalone.dashboard.request.TestResultRequest request, Component component, List&lt;TestResult&gt; result) {
+        // add all test result repos
+<span class="nc" id="L93">        component.getCollectorItems().get(CollectorType.Test).forEach(item -&gt; {</span>
+<span class="nc" id="L94">            QTestResult testResult = new QTestResult(&quot;testResult&quot;);</span>
+<span class="nc" id="L95">            BooleanBuilder builder = new BooleanBuilder();</span>
+<span class="nc" id="L96">            builder.and(testResult.collectorItemId.eq(item.getId()));</span>
+<span class="nc" id="L97">            validateStartDateRange(request, testResult, builder);</span>
+<span class="nc" id="L98">            validateEndDateRange(request, testResult, builder);</span>
+<span class="nc" id="L99">            validateDurationRange(request, testResult, builder);</span>
+<span class="nc" id="L100">            validateTestCapabilities(request, testResult, builder);</span>
+<span class="nc" id="L101">            addAllTestResultRepositories(request, result, testResult, builder);</span>
+<span class="nc" id="L102">        });</span>
+<span class="nc" id="L103">    }</span>
+
+    private void addAllTestResultRepositories(com.capitalone.dashboard.request.TestResultRequest request, List&lt;TestResult&gt; result, QTestResult testResult, BooleanBuilder builder) {
+<span class="nc bnc" id="L106" title="All 2 branches missed.">        if (request.getMax() == null) {</span>
+<span class="nc" id="L107">            result.addAll(Lists.newArrayList(testResultRepository.findAll(builder.getValue(), testResult.timestamp.desc())));</span>
+        } else {
+<span class="nc" id="L109">            PageRequest pageRequest = new PageRequest(0, request.getMax(), Sort.Direction.DESC, &quot;timestamp&quot;);</span>
+<span class="nc" id="L110">            result.addAll(Lists.newArrayList(testResultRepository.findAll(builder.getValue(), pageRequest).getContent()));</span>
+        }
+<span class="nc" id="L112">    }</span>
+
+    private void validateTestCapabilities(com.capitalone.dashboard.request.TestResultRequest request, QTestResult testResult, BooleanBuilder builder) {
+<span class="nc bnc" id="L115" title="All 2 branches missed.">        if (!request.getTypes().isEmpty()) {</span>
+<span class="nc" id="L116">            builder.and(testResult.testCapabilities.any().type.in(request.getTypes()));</span>
+        }
+<span class="nc" id="L118">    }</span>
+
+    private void validateDurationRange(com.capitalone.dashboard.request.TestResultRequest request, QTestResult testResult, BooleanBuilder builder) {
+<span class="nc bnc" id="L121" title="All 2 branches missed.">        if (request.validDurationRange()) {</span>
+<span class="nc" id="L122">            builder.and(testResult.duration.between(request.getDurationGreaterThan(), request.getDurationLessThan()));</span>
+        }
+<span class="nc" id="L124">    }</span>
+
+    private void validateEndDateRange(com.capitalone.dashboard.request.TestResultRequest request, QTestResult testResult, BooleanBuilder builder) {
+<span class="nc bnc" id="L127" title="All 2 branches missed.">        if (request.validEndDateRange()) {</span>
+<span class="nc" id="L128">            builder.and(testResult.endTime.between(request.getEndDateBegins(), request.getEndDateEnds()));</span>
+        }
+<span class="nc" id="L130">    }</span>
+
+    private void validateStartDateRange(com.capitalone.dashboard.request.TestResultRequest request, QTestResult testResult, BooleanBuilder builder) {
+<span class="nc bnc" id="L133" title="All 2 branches missed.">        if (request.validStartDateRange()) {</span>
+<span class="nc" id="L134">            builder.and(testResult.startTime.between(request.getStartDateBegins(), request.getStartDateEnds()));</span>
+        }
+<span class="nc" id="L136">    }</span>
+
+    private Iterable&lt;TestResult&gt; pruneToDepth(List&lt;TestResult&gt; results, Integer depth) {
+        // Prune the response to the requested depth
+        // 0 - TestResult
+        // 1 - TestCapability
+        // 2 - TestSuite
+        // 3 - TestCase
+        // 4 - Entire response
+        // null - Entire response
+<span class="nc bnc" id="L146" title="All 4 branches missed.">        if (depth == null || depth &gt; 3) {</span>
+<span class="nc" id="L147">            return results;</span>
+        }
+<span class="nc" id="L149">        results.forEach(result -&gt; {</span>
+<span class="nc bnc" id="L150" title="All 2 branches missed.">            if (depth == 0) {</span>
+<span class="nc" id="L151">                result.getTestCapabilities().clear();</span>
+            } else {
+<span class="nc" id="L153">                result.getTestCapabilities().forEach(testCapability -&gt; {</span>
+<span class="nc bnc" id="L154" title="All 2 branches missed.">                    if (depth == 1) {</span>
+<span class="nc" id="L155">                        testCapability.getTestSuites().clear();</span>
+                    } else {
+<span class="nc" id="L157">                        testCapability.getTestSuites().forEach(testSuite -&gt; {</span>
+<span class="nc bnc" id="L158" title="All 2 branches missed.">                            if (depth == 2) {</span>
+<span class="nc" id="L159">                                testSuite.getTestCases().clear();</span>
+                            } else { // depth == 3
+<span class="nc" id="L161">                                testSuite.getTestCases().forEach(testCase -&gt; {</span>
+<span class="nc" id="L162">                                    testCase.getTestSteps().clear();</span>
+<span class="nc" id="L163">                                });</span>
+                            }
+<span class="nc" id="L165">                        });</span>
+                    }
+<span class="nc" id="L167">                });</span>
+            }
+<span class="nc" id="L169">        });</span>
+
+<span class="nc" id="L171">        return results;</span>
+    }
+
+
+    protected TestResult createTest(TestDataCreateRequest request) throws HygieiaException {
+        /*
+          Step 1: create Collector if not there
+          Step 2: create Collector item if not there
+          Step 3: Insert test data if new. If existing, update it
+         */
+<span class="fc" id="L181">        Collector collector = createCollector();</span>
+
+<span class="pc bpc" id="L183" title="1 of 2 branches missed.">        if (collector == null) {</span>
+<span class="nc" id="L184">            throw new HygieiaException(&quot;Failed creating Test collector.&quot;, HygieiaException.COLLECTOR_CREATE_ERROR);</span>
+        }
+
+<span class="fc" id="L187">        CollectorItem collectorItem = createCollectorItem(collector, request);</span>
+
+<span class="pc bpc" id="L189" title="1 of 2 branches missed.">        if (collectorItem == null) {</span>
+<span class="nc" id="L190">            throw new HygieiaException(&quot;Failed creating Test collector item.&quot;, HygieiaException.COLLECTOR_ITEM_CREATE_ERROR);</span>
+        }
+
+<span class="fc" id="L193">        TestResult testResult = createTest(collectorItem, request);</span>
+
+<span class="pc bpc" id="L195" title="1 of 2 branches missed.">        if (testResult == null) {</span>
+<span class="nc" id="L196">            throw new HygieiaException(&quot;Failed inserting/updating Test information.&quot;, HygieiaException.ERROR_INSERTING_DATA);</span>
+        }
+
+<span class="fc" id="L199">        return testResult;</span>
+
+    }
+
+    @Override
+    public String create(TestDataCreateRequest request) throws HygieiaException {
+<span class="fc" id="L205">        TestResult testResult = createTest(request);</span>
+<span class="fc" id="L206">        return testResult.getId().toString();</span>
+    }
+
+    @Override
+    public String createV2(TestDataCreateRequest request) throws HygieiaException {
+<span class="fc" id="L211">        TestResult testResult = createTest(request);</span>
+<span class="fc" id="L212">        return testResult.getId().toString() + &quot;,&quot; + testResult.getCollectorItemId().toString();</span>
+    }
+
+
+
+    protected TestResult createPerfTest(PerfTestDataCreateRequest request) throws HygieiaException {
+        /**
+         * Step 1: create performance Collector if not there
+         * Step 2: create Perfomance Collector item if not there
+         * Step 3: Insert performance test data if new. If existing, update it
+         */
+<span class="nc" id="L223">        Collector collector = createGenericCollector(request.getPerfTool());</span>
+<span class="nc bnc" id="L224" title="All 2 branches missed.">        if (collector == null) {</span>
+<span class="nc" id="L225">            throw new HygieiaException(&quot;Failed creating Test collector.&quot;, HygieiaException.COLLECTOR_CREATE_ERROR);</span>
+        }
+<span class="nc" id="L227">        CollectorItem collectorItem = createGenericCollectorItem(collector, request);</span>
+<span class="nc bnc" id="L228" title="All 2 branches missed.">        if (collectorItem == null) {</span>
+<span class="nc" id="L229">            throw new HygieiaException(&quot;Failed creating Test collector item.&quot;, HygieiaException.COLLECTOR_ITEM_CREATE_ERROR);</span>
+        }
+<span class="nc" id="L231">        TestResult testResult = createPerfTest(collectorItem, request);</span>
+<span class="nc bnc" id="L232" title="All 2 branches missed.">        if (testResult == null) {</span>
+<span class="nc" id="L233">            throw new HygieiaException(&quot;Failed inserting/updating Test information.&quot;, HygieiaException.ERROR_INSERTING_DATA);</span>
+        }
+<span class="nc" id="L235">        return testResult;</span>
+
+    }
+
+    protected TestResult createTestCucumber(TestCreateRequest request) throws HygieiaException {
+
+<span class="fc" id="L241">        CucumberJsonReport.Feature cucumberFeature = null;</span>
+
+        try {
+<span class="fc" id="L244">            cucumberFeature = decodeJsonPayload(CucumberJsonReport.Feature.class , request);</span>
+<span class="pc bpc" id="L245" title="4 of 8 branches missed.">            if(cucumberFeature.getId() == null || cucumberFeature.getKeyword() == null || cucumberFeature.getName() == null || cucumberFeature.getElements() == null) {</span>
+<span class="nc" id="L246">                throw new HygieiaException(&quot;TestResult is not a valid json.&quot;, HygieiaException.JSON_FORMAT_ERROR);</span>
+            }
+<span class="nc" id="L248">        }catch (Exception ex){</span>
+<span class="nc" id="L249">            throw new HygieiaException(&quot;TestResult is not a valid json.&quot;, HygieiaException.JSON_FORMAT_ERROR);</span>
+<span class="fc" id="L250">        }</span>
+<span class="fc" id="L251">        Collector collector = createGenericCollector(request, TestResultConstants.JENKINSCUCUMBERTEST);</span>
+<span class="pc bpc" id="L252" title="1 of 2 branches missed.">        if (collector == null) {</span>
+<span class="nc" id="L253">            throw new HygieiaException(&quot;Failed creating Test collector.&quot;, HygieiaException.COLLECTOR_CREATE_ERROR);</span>
+        }
+<span class="fc" id="L255">        CollectorItem collectorItem = createGenericCollectorItem(collector, request , cucumberFeature.getName());</span>
+<span class="pc bpc" id="L256" title="1 of 2 branches missed.">        if (collectorItem == null) {</span>
+<span class="nc" id="L257">            throw new HygieiaException(&quot;Failed creating Test collector item.&quot;, HygieiaException.COLLECTOR_ITEM_CREATE_ERROR);</span>
+        }
+<span class="fc" id="L259">        List&lt;CucumberJsonReport.Feature&gt; features = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L260">        features.add(cucumberFeature);</span>
+<span class="fc" id="L261">        CucumberJsonReport cucumberRequest = new CucumberJsonReport(features);</span>
+<span class="fc" id="L262">        CucumberJsonToTestCapabilityTransformer transformer = new CucumberJsonToTestCapabilityTransformer(null,&quot;&quot;);</span>
+<span class="fc" id="L263">        TestCapability testCapability = transformer.convert(cucumberRequest);</span>
+<span class="fc" id="L264">        TestResult testResult = createTestCucumber(collectorItem,cucumberFeature , TestSuiteType.Functional, request, testCapability);</span>
+<span class="pc bpc" id="L265" title="1 of 2 branches missed.">        if (testResult == null) {</span>
+<span class="nc" id="L266">            throw new HygieiaException(&quot;Failed inserting cucumber Test information.&quot;, HygieiaException.ERROR_INSERTING_DATA);</span>
+        }
+<span class="fc" id="L268">        return testResult;</span>
+
+    }
+
+    protected TestResult createTestJunit(TestCreateRequest request) throws HygieiaException {
+
+<span class="nc" id="L274">        JunitXmlReport  junitXmlReport = decodeXmlPayload(JunitXmlReport.class,request);</span>
+<span class="nc" id="L275">        Collector collector = createGenericCollector(request, TestResultConstants.JUNITTEST);;</span>
+<span class="nc bnc" id="L276" title="All 2 branches missed.">        if (collector == null) {</span>
+<span class="nc" id="L277">            throw new HygieiaException(&quot;Failed creating Test collector.&quot;, HygieiaException.COLLECTOR_CREATE_ERROR);</span>
+        }
+<span class="nc" id="L279">        CollectorItem collectorItem = createGenericCollectorItem(collector, request , junitXmlReport.getName() );</span>
+<span class="nc bnc" id="L280" title="All 2 branches missed.">        if (collectorItem == null) {</span>
+<span class="nc" id="L281">            throw new HygieiaException(&quot;Failed creating Test collector item.&quot;, HygieiaException.COLLECTOR_ITEM_CREATE_ERROR);</span>
+        }
+<span class="nc" id="L283">        JunitXmlToTestCapabilityTransformer transformer = new JunitXmlToTestCapabilityTransformer();</span>
+<span class="nc" id="L284">        TestCapability testCapability = transformer.convert(junitXmlReport);</span>
+<span class="nc" id="L285">        TestResult testResult = createTestJunit(collectorItem, junitXmlReport,  TestSuiteType.Unit, request,testCapability);</span>
+<span class="nc bnc" id="L286" title="All 2 branches missed.">        if (testResult == null) {</span>
+<span class="nc" id="L287">            throw new HygieiaException(&quot;Failed inserting Junit Test information.&quot;, HygieiaException.ERROR_INSERTING_DATA);</span>
+        }
+<span class="nc" id="L289">        return testResult;</span>
+
+    }
+
+    private &lt;T&gt; T decodeJsonPayload (Class&lt;T&gt; type , TestCreateRequest request) throws HygieiaException{
+<span class="pc bpc" id="L294" title="2 of 4 branches missed.">        if(request == null || StringUtils.isEmpty(request.getTestResult())) {</span>
+<span class="nc" id="L295">            throw new HygieiaException(&quot;TestResult is not a valid json.&quot;, HygieiaException.JSON_FORMAT_ERROR);</span>
+        }
+<span class="fc" id="L297">        byte[] decodedBytes = Base64.getDecoder().decode(request.getTestResult());</span>
+<span class="fc" id="L298">        String decodedPayload = new String(decodedBytes);</span>
+<span class="fc" id="L299">        Gson gson = new Gson();</span>
+<span class="fc" id="L300">        return gson.fromJson(decodedPayload , type);</span>
+
+    }
+
+    private &lt;T&gt; T decodeXmlPayload (Class&lt;T&gt; type , TestCreateRequest request) throws HygieiaException{
+
+<span class="nc bnc" id="L306" title="All 4 branches missed.">        if(request == null || StringUtils.isEmpty(request.getTestResult())) {</span>
+<span class="nc" id="L307">            throw new HygieiaException(&quot;TestResult is not a valid Xml&quot;, HygieiaException.JSON_FORMAT_ERROR);</span>
+        }
+<span class="nc" id="L309">        byte[] decodedBytes = Base64.getDecoder().decode(request.getTestResult());</span>
+<span class="nc" id="L310">        String decodedPayload = new String(decodedBytes);</span>
+<span class="nc" id="L311">        StringReader sr = new StringReader(decodedPayload);</span>
+<span class="nc" id="L312">        T junitXmlReport = null;</span>
+        try {
+<span class="nc" id="L314">            JAXBContext jaxbContext = JAXBContext.newInstance(type);</span>
+<span class="nc" id="L315">            Unmarshaller unmarshaller = jaxbContext.createUnmarshaller();</span>
+<span class="nc" id="L316">            junitXmlReport = (T) unmarshaller.unmarshal(sr);</span>
+<span class="nc" id="L317">        }catch (JAXBException ex){</span>
+<span class="nc" id="L318">            ex.printStackTrace();</span>
+<span class="nc" id="L319">            throw new HygieiaException(&quot;TestResult is not a valid Xml&quot;, HygieiaException.JSON_FORMAT_ERROR);</span>
+<span class="nc" id="L320">        }</span>
+<span class="nc" id="L321">        return junitXmlReport;</span>
+    }
+
+    @Override
+    public String createTest(TestCreateRequest request) throws HygieiaException {
+<span class="fc" id="L326">        TestResult testResult = null;</span>
+<span class="fc" id="L327">        validConfigurationItem(request.getConfigurationItem(),request.getTargetAppName());</span>
+<span class="pc bpc" id="L328" title="2 of 4 branches missed.">        if (TestResultConstants.FUNCTIONAL.equals(request.getTestType()) &amp;&amp; apiSettings.getFunctional().get(&quot;cucumber&quot;).equals(request.getSourceFormat())) {</span>
+
+<span class="fc" id="L330">            testResult = createTestCucumber(request);</span>
+
+<span class="nc bnc" id="L332" title="All 4 branches missed.">        } else if (TestResultConstants.UNIT.equals(request.getTestType())&amp;&amp; apiSettings.getUnit().equals(request.getSourceFormat())) {</span>
+
+<span class="nc" id="L334">            testResult = createTestJunit(request);</span>
+        } else {
+<span class="nc" id="L336">            return &quot;Hygieia does not support &quot; + request.getTestType() + &quot; sourceFormat &quot; + request.getSourceFormat();</span>
+        }
+<span class="fc" id="L338">        return testResult.getId() + &quot;,&quot; + testResult.getCollectorItemId();</span>
+    }
+
+
+    @Override
+    public String createPerf(PerfTestDataCreateRequest request) throws HygieiaException {
+<span class="nc" id="L344">        TestResult testResult = createPerfTest(request);</span>
+<span class="nc" id="L345">        return testResult.getId().toString();</span>
+    }
+
+    @Override
+    public String createPerfV2(PerfTestDataCreateRequest request) throws HygieiaException {
+<span class="nc" id="L350">        TestResult testResult = createPerfTest(request);</span>
+<span class="nc" id="L351">        return testResult.getId().toString() + &quot;,&quot; + testResult.getCollectorItemId().toString();</span>
+    }
+
+    private Collector createCollector() {
+<span class="fc" id="L355">        CollectorRequest collectorReq = new CollectorRequest();</span>
+<span class="fc" id="L356">        collectorReq.setName(&quot;JenkinsCucumberTest&quot;);</span>
+<span class="fc" id="L357">        collectorReq.setCollectorType(CollectorType.Test);</span>
+<span class="fc" id="L358">        Collector col = collectorReq.toCollector();</span>
+<span class="fc" id="L359">        col.setEnabled(true);</span>
+<span class="fc" id="L360">        col.setOnline(true);</span>
+<span class="fc" id="L361">        col.setLastExecuted(System.currentTimeMillis());</span>
+<span class="fc" id="L362">        Map&lt;String, Object&gt; allOptions = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L363">        allOptions.put(&quot;jobUrl&quot;, &quot;&quot;);</span>
+<span class="fc" id="L364">        allOptions.put(&quot;instanceUrl&quot;, &quot;&quot;);</span>
+<span class="fc" id="L365">        allOptions.put(&quot;jobName&quot;,&quot;&quot;);</span>
+<span class="fc" id="L366">        allOptions.put(&quot;testType&quot;,&quot;&quot;);</span>
+<span class="fc" id="L367">        col.setAllFields(allOptions);</span>
+        //Combination of jobName and jobUrl should be unique always.
+<span class="fc" id="L369">        Map&lt;String, Object&gt; uniqueOptions = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L370">        uniqueOptions.put(&quot;jobUrl&quot;, &quot;&quot;);</span>
+<span class="fc" id="L371">        uniqueOptions.put(&quot;jobName&quot;,&quot;&quot;);</span>
+<span class="fc" id="L372">        uniqueOptions.put(&quot;testType&quot;,&quot;&quot;);</span>
+<span class="fc" id="L373">        col.setUniqueFields(uniqueOptions);</span>
+<span class="fc" id="L374">        return collectorService.createCollector(col);</span>
+    }
+
+
+    private Collector createGenericCollector(String performanceTool) {
+<span class="nc" id="L379">        CollectorRequest collectorReq = new CollectorRequest();</span>
+<span class="nc" id="L380">        collectorReq.setName(performanceTool);</span>
+<span class="nc" id="L381">        collectorReq.setCollectorType(CollectorType.Test);</span>
+<span class="nc" id="L382">        Collector col = collectorReq.toCollector();</span>
+<span class="nc" id="L383">        col.setEnabled(true);</span>
+<span class="nc" id="L384">        col.setOnline(true);</span>
+<span class="nc" id="L385">        col.setLastExecuted(System.currentTimeMillis());</span>
+<span class="nc" id="L386">        Map&lt;String, Object&gt; allOptions = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L387">        allOptions.put(&quot;jobName&quot;,&quot;&quot;);</span>
+<span class="nc" id="L388">        allOptions.put(&quot;instanceUrl&quot;, &quot;&quot;);</span>
+<span class="nc" id="L389">        allOptions.put(&quot;testType&quot;,&quot;&quot;);</span>
+<span class="nc" id="L390">        col.setAllFields(allOptions);</span>
+<span class="nc" id="L391">        col.setUniqueFields(allOptions);</span>
+<span class="nc" id="L392">        return collectorService.createCollector(col);</span>
+    }
+
+    private CollectorItem createCollectorItem(Collector collector, TestDataCreateRequest request) throws HygieiaException {
+<span class="fc" id="L396">        CollectorItem tempCi = new CollectorItem();</span>
+<span class="fc" id="L397">        tempCi.setCollectorId(collector.getId());</span>
+<span class="fc" id="L398">        tempCi.setDescription(request.getDescription());</span>
+<span class="fc" id="L399">        tempCi.setPushed(true);</span>
+<span class="fc" id="L400">        tempCi.setLastUpdated(System.currentTimeMillis());</span>
+<span class="fc" id="L401">        Map&lt;String, Object&gt; option = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L402">        option.put(&quot;jobName&quot;, request.getTestJobName());</span>
+<span class="fc" id="L403">        option.put(&quot;jobUrl&quot;, request.getTestJobUrl());</span>
+<span class="fc" id="L404">        option.put(&quot;instanceUrl&quot;, request.getServerUrl());</span>
+<span class="fc" id="L405">        option.put(&quot;testType&quot;,request.getType());</span>
+<span class="fc" id="L406">        tempCi.getOptions().putAll(option);</span>
+<span class="fc" id="L407">        tempCi.setNiceName(request.getNiceName());</span>
+<span class="pc bpc" id="L408" title="1 of 2 branches missed.">        if (StringUtils.isEmpty(tempCi.getNiceName())) {</span>
+<span class="fc" id="L409">            return collectorService.createCollectorItem(tempCi);</span>
+        }
+<span class="nc" id="L411">        return collectorService.createCollectorItemByNiceNameAndJobName(tempCi, request.getTestJobName());</span>
+    }
+
+
+    private CollectorItem createGenericCollectorItem(Collector collector, PerfTestDataCreateRequest request) {
+<span class="nc" id="L416">        CollectorItem tempCi = new CollectorItem();</span>
+<span class="nc" id="L417">        tempCi.setCollectorId(collector.getId());</span>
+<span class="nc" id="L418">        tempCi.setDescription(request.getPerfTool()+&quot; : &quot;+request.getTestName());</span>
+<span class="nc" id="L419">        tempCi.setPushed(true);</span>
+<span class="nc" id="L420">        tempCi.setLastUpdated(System.currentTimeMillis());</span>
+<span class="nc" id="L421">        Map&lt;String, Object&gt; option = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L422">        option.put(&quot;jobName&quot;, request.getTestName());</span>
+<span class="nc" id="L423">        option.put(&quot;instanceUrl&quot;, request.getInstanceUrl());</span>
+<span class="nc" id="L424">        option.put(&quot;testType&quot;,request.getType());</span>
+<span class="nc" id="L425">        tempCi.getOptions().putAll(option);</span>
+<span class="nc" id="L426">        tempCi.setNiceName(request.getPerfTool());</span>
+<span class="nc" id="L427">        return collectorService.createCollectorItem(tempCi);</span>
+    }
+
+
+    private Collector createGenericCollector(TestCreateRequest request, String name) {
+<span class="fc" id="L432">        CollectorRequest collectorReq = new CollectorRequest();</span>
+<span class="fc" id="L433">        collectorReq.setName(name);</span>
+<span class="fc" id="L434">        collectorReq.setCollectorType(CollectorType.Test);</span>
+<span class="fc" id="L435">        Collector col = collectorReq.toCollector();</span>
+<span class="fc" id="L436">        col.setEnabled(true);</span>
+<span class="fc" id="L437">        col.setOnline(true);</span>
+<span class="fc" id="L438">        col.setLastExecuted(System.currentTimeMillis());</span>
+<span class="fc" id="L439">        Map&lt;String, Object&gt; allOptions = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L440">        allOptions.put(&quot;jobUrl&quot;, &quot;&quot;);</span>
+<span class="fc" id="L441">        allOptions.put(&quot;jobName&quot;,&quot;&quot;);</span>
+<span class="fc" id="L442">        allOptions.put(&quot;instanceUrl&quot;, &quot;&quot;);</span>
+<span class="fc" id="L443">        allOptions.put(&quot;testType&quot;,&quot;&quot;);</span>
+<span class="fc" id="L444">        col.setAllFields(allOptions);</span>
+<span class="fc" id="L445">        col.setUniqueFields(allOptions);</span>
+<span class="fc" id="L446">        return collectorService.createCollector(col);</span>
+    }
+
+    private Map&lt;String, String&gt; getJobNameAndInstanceUrl(String jobUrl){
+<span class="fc" id="L450">        Map&lt;String ,String&gt; map = new HashMap&lt;&gt;();</span>
+<span class="pc bpc" id="L451" title="1 of 2 branches missed.">        if(StringUtils.isNotEmpty(jobUrl)){</span>
+<span class="nc" id="L452">            Pattern pattern = Pattern.compile(&quot;(.*?://)([^:^/]*)?(.*)?&quot;);</span>
+<span class="nc" id="L453">            Matcher matcher = pattern.matcher(jobUrl);</span>
+<span class="nc" id="L454">            matcher.find();</span>
+<span class="nc" id="L455">            String protocol = matcher.group(1);</span>
+<span class="nc" id="L456">            String domain = matcher.group(2);</span>
+<span class="nc" id="L457">            String uri = matcher.group(3);</span>
+<span class="nc" id="L458">                map.put(&quot;instanceUrl&quot;, protocol+domain);</span>
+<span class="nc" id="L459">                map.put(&quot;jobName&quot;, uri);</span>
+        }
+<span class="fc" id="L461">        return map;</span>
+    }
+
+
+
+    private CollectorItem createGenericCollectorItem(Collector collector,  TestCreateRequest request, String desc) {
+<span class="fc" id="L467">        CollectorItem tempCi = new CollectorItem();</span>
+<span class="fc" id="L468">        tempCi.setCollectorId(collector.getId());</span>
+<span class="fc" id="L469">        tempCi.setDescription(desc);</span>
+<span class="fc" id="L470">        tempCi.setPushed(true);</span>
+<span class="fc" id="L471">        tempCi.setLastUpdated(System.currentTimeMillis());</span>
+<span class="fc" id="L472">        Map&lt;String, Object&gt; option = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L473">        option.put(&quot;jobUrl&quot;, request.getJobUrl());</span>
+<span class="fc" id="L474">        Map&lt;String,String&gt; map = getJobNameAndInstanceUrl(request.getJobUrl());</span>
+<span class="fc" id="L475">        option.put(&quot;jobName&quot;,map.get(&quot;jobName&quot;));</span>
+<span class="fc" id="L476">        option.put(&quot;instanceUrl&quot;, map.get(&quot;instanceUrl&quot;));</span>
+<span class="fc" id="L477">        option.put(&quot;testType&quot;,request.getTestType());</span>
+<span class="fc" id="L478">        tempCi.getOptions().putAll(option);</span>
+<span class="fc" id="L479">        tempCi.setNiceName(request.getSourceFormat());</span>
+<span class="fc" id="L480">        return collectorService.createCollectorItem(tempCi);</span>
+    }
+
+
+
+    private TestResult createTest(CollectorItem collectorItem, TestDataCreateRequest request) {
+<span class="fc" id="L486">        TestResult testResult = testResultRepository.findByCollectorItemIdAndExecutionId(collectorItem.getId(),</span>
+<span class="fc" id="L487">                request.getExecutionId());</span>
+<span class="pc bpc" id="L488" title="1 of 2 branches missed.">        if (testResult == null) {</span>
+<span class="fc" id="L489">            testResult = new TestResult();</span>
+        }
+<span class="fc" id="L491">        testResult.setTargetAppName(request.getTargetAppName());</span>
+<span class="fc" id="L492">        testResult.setTargetEnvName(request.getTargetEnvName());</span>
+<span class="fc" id="L493">        testResult.setCollectorItemId(collectorItem.getId());</span>
+<span class="fc" id="L494">        testResult.setType(request.getType());</span>
+<span class="fc" id="L495">        testResult.setDescription(request.getDescription());</span>
+<span class="fc" id="L496">        testResult.setDuration(request.getDuration());</span>
+<span class="fc" id="L497">        testResult.setEndTime(request.getEndTime());</span>
+<span class="fc" id="L498">        testResult.setExecutionId(request.getExecutionId());</span>
+<span class="fc" id="L499">        testResult.setFailureCount(request.getFailureCount());</span>
+<span class="fc" id="L500">        testResult.setSkippedCount(request.getSkippedCount());</span>
+<span class="fc" id="L501">        testResult.setStartTime(request.getStartTime());</span>
+<span class="fc" id="L502">        testResult.setSuccessCount(request.getSuccessCount());</span>
+<span class="pc bpc" id="L503" title="1 of 2 branches missed.">        if(request.getTimestamp() == 0) request.setTimestamp(System.currentTimeMillis());</span>
+<span class="fc" id="L504">        testResult.setTimestamp(request.getTimestamp());</span>
+<span class="fc" id="L505">        testResult.setTotalCount(request.getTotalCount());</span>
+<span class="fc" id="L506">        testResult.setUnknownStatusCount(request.getUnknownStatusCount());</span>
+<span class="fc" id="L507">        testResult.setUrl(request.getTestJobUrl());</span>
+<span class="fc" id="L508">        testResult.getTestCapabilities().addAll(request.getTestCapabilities());</span>
+<span class="fc" id="L509">        testResult.setBuildId(new ObjectId(request.getTestJobId()));</span>
+<span class="fc" id="L510">        testResult.setBuildArtifact(request.getBuildArtifact());</span>
+<span class="fc" id="L511">        return testResultRepository.save(testResult);</span>
+    }
+
+    private TestResult createPerfTest(CollectorItem collectorItem, PerfTestDataCreateRequest request) {
+<span class="nc" id="L515">        TestResult testResult = testResultRepository.findByCollectorItemIdAndExecutionId(collectorItem.getId(),</span>
+<span class="nc" id="L516">                request.getRunId());</span>
+<span class="nc bnc" id="L517" title="All 2 branches missed.">        if (testResult == null) {</span>
+<span class="nc" id="L518">            testResult = new TestResult();</span>
+        }
+<span class="nc" id="L520">        testResult.setTargetAppName(request.getTargetAppName());</span>
+<span class="nc" id="L521">        testResult.setTargetEnvName(request.getTargetEnvName());</span>
+<span class="nc" id="L522">        testResult.setCollectorItemId(collectorItem.getId());</span>
+<span class="nc" id="L523">        testResult.setType(request.getType());</span>
+<span class="nc" id="L524">        testResult.setDescription(request.getDescription());</span>
+<span class="nc" id="L525">        testResult.setDuration(request.getDuration());</span>
+<span class="nc" id="L526">        testResult.setEndTime(request.getEndTime());</span>
+<span class="nc" id="L527">        testResult.setExecutionId(request.getRunId());</span>
+<span class="nc" id="L528">        testResult.setFailureCount(request.getFailureCount());</span>
+<span class="nc" id="L529">        testResult.setSkippedCount(request.getSkippedCount());</span>
+<span class="nc" id="L530">        testResult.setStartTime(request.getStartTime());</span>
+<span class="nc" id="L531">        testResult.setSuccessCount(request.getSuccessCount());</span>
+<span class="nc bnc" id="L532" title="All 2 branches missed.">        if(request.getTimestamp() == 0) request.setTimestamp(System.currentTimeMillis());</span>
+<span class="nc" id="L533">        testResult.setTimestamp(request.getTimestamp());</span>
+<span class="nc" id="L534">        testResult.setTotalCount(request.getTotalCount());</span>
+<span class="nc" id="L535">        testResult.setUnknownStatusCount(request.getUnknownStatusCount());</span>
+<span class="nc" id="L536">        testResult.setUrl(request.getReportUrl());</span>
+<span class="nc" id="L537">        testResult.getTestCapabilities().addAll(request.getTestCapabilities());</span>
+<span class="nc" id="L538">        testResult.setDescription(request.getDescription());</span>
+<span class="nc" id="L539">        testResult.setResultStatus(request.getResultStatus());</span>
+<span class="nc" id="L540">        testResult.setBuildArtifact(request.getBuildArtifact());</span>
+<span class="nc" id="L541">        testResult.setPerfRisk(request.getPerfRisk());</span>
+<span class="nc" id="L542">        return testResultRepository.save(testResult);</span>
+    }
+
+
+
+
+    private TestResult createTestCucumber(CollectorItem collectorItem, CucumberJsonReport.Feature cucumberReport, TestSuiteType type, TestCreateRequest request, TestCapability cucumberTestCapabilityTransformer) {
+
+<span class="fc" id="L550">        TestResult  testResult = new TestResult();</span>
+<span class="fc" id="L551">        Collection&lt;TestCapability&gt; testCapabilities = new ArrayList();</span>
+<span class="fc" id="L552">        testCapabilities.add(cucumberTestCapabilityTransformer);</span>
+<span class="fc" id="L553">        testResult.setTestCapabilities(testCapabilities);</span>
+<span class="fc" id="L554">        testResult.setType(type);</span>
+<span class="fc" id="L555">        testResult.setCollectorItemId(collectorItem.getId());</span>
+<span class="fc" id="L556">        testResult.setDescription(cucumberReport.getName());</span>
+<span class="fc" id="L557">        testResult.setTestCapabilities(testCapabilities);</span>
+<span class="fc" id="L558">        testResult.setType(type);</span>
+<span class="fc" id="L559">        testResult.setCollectorItemId(collectorItem.getId());</span>
+<span class="fc" id="L560">        testResult.setTargetEnvName(getConfigurationItem(request.getConfigurationItem(),request.getTargetAppName()));</span>
+<span class="fc" id="L561">        testResult.setTargetAppName(request.getTargetAppName());</span>
+<span class="fc" id="L562">        testResult.setDuration(cucumberTestCapabilityTransformer.getDuration());</span>
+<span class="fc" id="L563">        testResult.setFailureCount(cucumberTestCapabilityTransformer.getFailedTestSuiteCount());</span>
+<span class="fc" id="L564">        testResult.setSuccessCount(cucumberTestCapabilityTransformer.getSuccessTestSuiteCount());</span>
+<span class="fc" id="L565">        testResult.setSkippedCount(cucumberTestCapabilityTransformer.getSkippedTestSuiteCount());</span>
+<span class="fc" id="L566">        testResult.setTotalCount(cucumberTestCapabilityTransformer.getTotalTestSuiteCount());</span>
+<span class="fc" id="L567">        testResult.setUnknownStatusCount(cucumberTestCapabilityTransformer.getUnknownStatusTestSuiteCount());</span>
+<span class="fc" id="L568">        testResult.setTimestamp(convertTimestamp(request.getTimeStamp()));</span>
+<span class="fc" id="L569">        testResult.getTestCapabilities().addAll(testCapabilities);</span>
+<span class="fc" id="L570">        TestResult result = testResultRepository.save(testResult);</span>
+<span class="fc" id="L571">        return result;</span>
+    }
+
+
+    private TestResult createTestJunit(CollectorItem collectorItem, JunitXmlReport junitXmlReport, TestSuiteType type, TestCreateRequest request, TestCapability testCapability) {
+
+<span class="nc" id="L577">        TestResult  testResult = new TestResult();</span>
+<span class="nc" id="L578">        Collection&lt;TestCapability&gt; testCapabilities = new ArrayList();</span>
+<span class="nc" id="L579">        testCapabilities.add(testCapability);</span>
+<span class="nc" id="L580">        testResult.setTestCapabilities(testCapabilities);</span>
+<span class="nc" id="L581">        testResult.setType(type);</span>
+<span class="nc" id="L582">        testResult.setCollectorItemId(collectorItem.getId());</span>
+<span class="nc" id="L583">        testResult.setDescription(junitXmlReport.getName());</span>
+<span class="nc" id="L584">        testResult.setTargetEnvName(getConfigurationItem(request.getConfigurationItem(),request.getTargetAppName()));</span>
+<span class="nc" id="L585">        testResult.setTargetAppName((request.getTargetAppName()));</span>
+<span class="nc" id="L586">        testResult.setDuration(junitXmlReport.getTime().longValue());</span>
+<span class="nc" id="L587">        testResult.setFailureCount(junitXmlReport.getFailures());</span>
+<span class="nc" id="L588">        testResult.setSuccessCount(testCapability.getSuccessTestSuiteCount());</span>
+<span class="nc bnc" id="L589" title="All 4 branches missed.">        testResult.setSkippedCount(StringUtils.isNotEmpty(junitXmlReport.getSkipped())? Integer.parseInt(junitXmlReport.getSkipped()):StringUtils.isNotEmpty(junitXmlReport.getSkips())? Integer.parseInt(junitXmlReport.getSkips()): 0);</span>
+<span class="nc" id="L590">        testResult.setTotalCount(junitXmlReport.getTests());</span>
+<span class="nc" id="L591">        testResult.setUnknownStatusCount(testCapability.getUnknownStatusTestSuiteCount());</span>
+<span class="nc" id="L592">        testResult.setTimestamp(convertTimestamp(request.getTimeStamp()));</span>
+<span class="nc" id="L593">        testResult.getTestCapabilities().addAll(testCapabilities);</span>
+<span class="nc" id="L594">        TestResult result = testResultRepository.save(testResult);</span>
+<span class="nc" id="L595">        return result;</span>
+    }
+
+
+
+    private String getConfigurationItem(String configurationItem, String targetAppName){
+
+<span class="pc bpc" id="L602" title="1 of 2 branches missed.">        if (StringUtils.isNotBlank(configurationItem))</span>
+        {
+<span class="fc" id="L604">            return configurationItem;</span>
+        }
+<span class="nc bnc" id="L606" title="All 2 branches missed.">        else if (StringUtils.isNotBlank(targetAppName) ){</span>
+<span class="nc" id="L607">           List&lt;Cmdb&gt; cmdb = cmdbService.commonNameByConfigurationItem(targetAppName);</span>
+<span class="nc bnc" id="L608" title="All 2 branches missed.">           if(cmdb.size() &gt; 0){</span>
+<span class="nc" id="L609">               return cmdb.get(0).getConfigurationItem();</span>
+           }
+        }
+
+<span class="nc" id="L613">        return null;</span>
+    }
+
+    private void validConfigurationItem(String configurationItem, String targetAppName) throws HygieiaException{
+
+<span class="pc bpc" id="L618" title="1 of 2 branches missed.">        if (StringUtils.isBlank(configurationItem))</span>
+        {
+<span class="nc bnc" id="L620" title="All 2 branches missed.">            if (StringUtils.isBlank(targetAppName)){</span>
+<span class="nc" id="L621">                throw new HygieiaException(&quot;targetAppName should not be null.&quot;,HygieiaException.BAD_DATA);</span>
+
+            }
+        }
+<span class="fc" id="L625">    }</span>
+
+    private long convertTimestamp (String timestamp){
+
+<span class="fc" id="L629">        long time = 0;</span>
+
+<span class="pc bpc" id="L631" title="1 of 2 branches missed.">        if(StringUtils.isNotEmpty(timestamp)){</span>
+<span class="fc" id="L632">          time = DateTimeFormat.forPattern(&quot;yyyy-MM-dd'T'HH:mm:ss.SSS Z&quot;).parseMillis(timestamp);</span>
+
+        }else{
+<span class="nc" id="L635">            time = System.currentTimeMillis();</span>
+        }
+
+
+<span class="fc" id="L639">        return time;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

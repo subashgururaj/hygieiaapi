@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AdminController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.rest</a> &gt; <span class="el_source">AdminController.java</span></div><h1>AdminController.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.rest;
+
+import com.capitalone.dashboard.auth.access.Admin;
+import com.capitalone.dashboard.misc.HygieiaException;
+import com.capitalone.dashboard.model.ApiToken;
+import com.capitalone.dashboard.model.FeatureFlag;
+import com.capitalone.dashboard.model.ServiceAccount;
+import com.capitalone.dashboard.model.UserInfo;
+import com.capitalone.dashboard.request.ApiTokenRequest;
+import com.capitalone.dashboard.request.FeatureFlagRequest;
+import com.capitalone.dashboard.request.ServiceAccountRequest;
+import com.capitalone.dashboard.service.ApiTokenService;
+import com.capitalone.dashboard.service.FeatureFlagService;
+import com.capitalone.dashboard.service.ServiceAccountService;
+import com.capitalone.dashboard.service.UserInfoService;
+import com.capitalone.dashboard.util.EncryptionException;
+import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.PathVariable;
+
+import javax.validation.Valid;
+import java.util.Collection;
+import java.util.List;
+
+import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
+
+@RestController
+@RequestMapping(&quot;/admin&quot;)
+@Admin
+public class AdminController {
+    
+    private final UserInfoService userInfoService;
+
+    private final ApiTokenService apiTokenService;
+
+    private final ServiceAccountService serviceAccountService;
+
+    private final FeatureFlagService featureFlagService;
+
+    @Autowired
+<span class="fc" id="L47">    public AdminController(UserInfoService userInfoService, ApiTokenService apiTokenService,ServiceAccountService serviceAccountService,FeatureFlagService featureFlagService) {</span>
+<span class="fc" id="L48">        this.userInfoService = userInfoService;</span>
+<span class="fc" id="L49">        this.apiTokenService = apiTokenService;</span>
+<span class="fc" id="L50">        this.serviceAccountService = serviceAccountService;</span>
+<span class="fc" id="L51">        this.featureFlagService = featureFlagService;</span>
+<span class="fc" id="L52">    }</span>
+    
+    @RequestMapping(path = &quot;/users/addAdmin&quot;, method = RequestMethod.POST)
+    public ResponseEntity&lt;UserInfo&gt; addAdmin(@RequestBody UserInfo user) {
+<span class="fc" id="L56">        UserInfo savedUser = userInfoService.promoteToAdmin(user.getUsername(), user.getAuthType());</span>
+
+<span class="fc" id="L58">        return new ResponseEntity&lt;UserInfo&gt;(savedUser, HttpStatus.OK);</span>
+    }
+    
+    @RequestMapping(path = &quot;/users/removeAdmin&quot;, method = RequestMethod.POST)
+    public ResponseEntity&lt;UserInfo&gt; removeAuthorityFromUser(@RequestBody UserInfo user) {
+<span class="fc" id="L63">        UserInfo savedUser = userInfoService.demoteFromAdmin(user.getUsername(), user.getAuthType());</span>
+
+<span class="fc" id="L65">        return new ResponseEntity&lt;UserInfo&gt;(savedUser, HttpStatus.OK);</span>
+    }
+
+    @RequestMapping(value = &quot;/createToken&quot;, method = RequestMethod.POST, consumes = APPLICATION_JSON_VALUE, produces = APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;String&gt; createToken(@Valid @RequestBody ApiTokenRequest apiTokenRequest) {
+        try {
+<span class="nc" id="L71">            return ResponseEntity</span>
+<span class="nc" id="L72">                    .status(HttpStatus.OK)</span>
+<span class="nc" id="L73">                    .body(apiTokenService.getApiToken(apiTokenRequest.getApiUser(),</span>
+<span class="nc" id="L74">                            apiTokenRequest.getExpirationDt())</span>
+                    );
+<span class="nc" id="L76">        } catch (EncryptionException e) {</span>
+<span class="nc" id="L77">            return ResponseEntity</span>
+<span class="nc" id="L78">                    .status(HttpStatus.BAD_REQUEST)</span>
+<span class="nc" id="L79">                    .body(e.getMessage());</span>
+<span class="nc" id="L80">        } catch (HygieiaException e) {</span>
+<span class="nc" id="L81">            return ResponseEntity</span>
+<span class="nc" id="L82">                    .status(HttpStatus.BAD_REQUEST)</span>
+<span class="nc" id="L83">                    .body(e.getMessage());</span>
+        }
+    }
+    @RequestMapping(value = &quot;/updateToken/{id}&quot;, method = RequestMethod.POST, consumes = APPLICATION_JSON_VALUE, produces = APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;String&gt; updateToken(@Valid @RequestBody ApiTokenRequest apiTokenRequest, @PathVariable ObjectId id) {
+        try {
+<span class="nc" id="L89">            return ResponseEntity</span>
+<span class="nc" id="L90">                    .status(HttpStatus.OK)</span>
+<span class="nc" id="L91">                    .body(apiTokenService.updateToken(apiTokenRequest.getExpirationDt(),id));</span>
+<span class="nc" id="L92">        } catch (HygieiaException e) {</span>
+<span class="nc" id="L93">            return ResponseEntity</span>
+<span class="nc" id="L94">                    .status(HttpStatus.BAD_REQUEST)</span>
+<span class="nc" id="L95">                    .body(e.getMessage());</span>
+        }
+    }
+    @RequestMapping(value = &quot;/deleteToken/{id}&quot;, method = RequestMethod.DELETE)
+    public ResponseEntity&lt;Void&gt; deleteToken(@PathVariable ObjectId id) {
+<span class="nc" id="L100">        apiTokenService.deleteToken(id);</span>
+<span class="nc" id="L101">        return ResponseEntity.noContent().build();</span>
+    }
+    @RequestMapping(path = &quot;/apitokens&quot;, method = RequestMethod.GET)
+    public Collection&lt;ApiToken&gt; getApiTokens() {
+<span class="nc" id="L105">        Collection&lt;ApiToken&gt; tokens = apiTokenService.getApiTokens();</span>
+<span class="nc" id="L106">        return tokens;</span>
+    }
+
+    @RequestMapping(value = &quot;/createAccount&quot;, method = RequestMethod.POST, consumes = APPLICATION_JSON_VALUE, produces = APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;String&gt; createAccount(@Valid @RequestBody ServiceAccountRequest serviceAccountRequest) {
+        try {
+<span class="nc" id="L112">            return ResponseEntity</span>
+<span class="nc" id="L113">                    .status(HttpStatus.OK)</span>
+<span class="nc" id="L114">                    .body(serviceAccountService.createAccount(serviceAccountRequest.getServiceAccount(),</span>
+<span class="nc" id="L115">                            serviceAccountRequest.getFileNames()));</span>
+<span class="nc" id="L116">        } catch (Exception e) {</span>
+<span class="nc" id="L117">            return ResponseEntity</span>
+<span class="nc" id="L118">                    .status(HttpStatus.BAD_REQUEST)</span>
+<span class="nc" id="L119">                    .body(e.getMessage());</span>
+        }
+    }
+
+    @RequestMapping(value = &quot;/updateAccount/{id}&quot;, method = RequestMethod.POST, consumes = APPLICATION_JSON_VALUE, produces = APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;String&gt; updateAccount(@Valid @RequestBody ServiceAccountRequest serviceAccountRequest, @PathVariable ObjectId id) {
+        try {
+<span class="nc" id="L126">            return ResponseEntity</span>
+<span class="nc" id="L127">                    .status(HttpStatus.OK)</span>
+<span class="nc" id="L128">                    .body(serviceAccountService.updateAccount(serviceAccountRequest.getServiceAccount(),</span>
+<span class="nc" id="L129">                            serviceAccountRequest.getFileNames(),id));</span>
+<span class="nc" id="L130">        } catch (Exception e) {</span>
+<span class="nc" id="L131">            return ResponseEntity</span>
+<span class="nc" id="L132">                    .status(HttpStatus.BAD_REQUEST)</span>
+<span class="nc" id="L133">                    .body(e.getMessage());</span>
+        }
+    }
+
+    @RequestMapping(path = &quot;/allServiceAccounts&quot;, method = RequestMethod.GET)
+    public Collection&lt;ServiceAccount&gt; getAllServiceAccouts() {
+<span class="nc" id="L139">        Collection&lt;ServiceAccount&gt; serviceAccounts = serviceAccountService.getAllServiceAccounts();</span>
+<span class="nc" id="L140">        return serviceAccounts;</span>
+    }
+
+
+    @RequestMapping(path = &quot;/deleteAccount/{id}&quot;, method = RequestMethod.DELETE)
+    public ResponseEntity&lt;Void&gt; deleteAccount(@PathVariable ObjectId id){
+<span class="nc" id="L146">        serviceAccountService.deleteAccount(id);</span>
+<span class="nc" id="L147">        return ResponseEntity.&lt;Void&gt;noContent().build();</span>
+    }
+
+    @RequestMapping(value = &quot;/addOrUpdateFeatureFlags&quot;, method = RequestMethod.POST, consumes = APPLICATION_JSON_VALUE, produces = APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;String&gt; addFeatureFlags(@Valid @RequestBody FeatureFlagRequest featureFlagRequest) {
+        try {
+<span class="nc" id="L153">            return ResponseEntity</span>
+<span class="nc" id="L154">                    .status(HttpStatus.OK)</span>
+<span class="nc" id="L155">                    .body(featureFlagService.createOrUpdateFlags(featureFlagRequest.getJson()));</span>
+<span class="nc" id="L156">        } catch (Exception e) {</span>
+<span class="nc" id="L157">            return ResponseEntity</span>
+<span class="nc" id="L158">                    .status(HttpStatus.BAD_REQUEST)</span>
+<span class="nc" id="L159">                    .body(e.getMessage());</span>
+        }
+    }
+
+    @RequestMapping(path = &quot;/featureFlags&quot;, method = RequestMethod.GET)
+    public List&lt;FeatureFlag&gt; getFeatureFlags() {
+<span class="nc" id="L165">        List&lt;FeatureFlag&gt; ff = featureFlagService.getFeatureFlags();</span>
+<span class="nc" id="L166">        return ff;</span>
+    }
+
+    @RequestMapping(path = &quot;/deleteFeatureFlags/{id}&quot;, method = RequestMethod.DELETE)
+    public ResponseEntity&lt;Void&gt; deleteFeatureFlags(@PathVariable ObjectId id) {
+<span class="nc" id="L171">        featureFlagService.deleteFlags(id);</span>
+<span class="nc" id="L172">        return ResponseEntity.&lt;Void&gt;noContent().build();</span>
+    }
+
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

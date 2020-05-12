@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CloudSubnetController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.rest</a> &gt; <span class="el_source">CloudSubnetController.java</span></div><h1>CloudSubnetController.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.rest;
+
+
+import com.capitalone.dashboard.model.CloudSubNetwork;
+import com.capitalone.dashboard.model.NameValue;
+import com.capitalone.dashboard.request.CloudInstanceListRefreshRequest;
+import com.capitalone.dashboard.request.CloudSubnetCreateRequest;
+import com.capitalone.dashboard.response.CloudSubNetworkAggregatedResponse;
+import com.capitalone.dashboard.service.CloudSubnetService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import javax.validation.Valid;
+import java.util.Collection;
+import java.util.List;
+
+import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
+import static org.springframework.web.bind.annotation.RequestMethod.GET;
+import static org.springframework.web.bind.annotation.RequestMethod.POST;
+
+@RestController
+public class CloudSubnetController {
+    private final CloudSubnetService cloudSubnetService;
+
+    @Autowired
+<span class="fc" id="L30">    public CloudSubnetController(CloudSubnetService cloudSubnetService) {</span>
+<span class="fc" id="L31">        this.cloudSubnetService = cloudSubnetService;</span>
+
+<span class="fc" id="L33">    }</span>
+
+    // Cloud Subnet End Points
+
+    @RequestMapping(value = &quot;/cloud/subnet/refresh&quot;, method = POST, consumes = APPLICATION_JSON_VALUE,
+            produces = APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;Collection&lt;String&gt;&gt; refreshInstances(
+            @Valid @RequestBody CloudInstanceListRefreshRequest request) {
+<span class="nc" id="L41">        return ResponseEntity.ok().body(cloudSubnetService.refreshSubnets(request));</span>
+    }
+
+    @RequestMapping(value = &quot;/cloud/subnet/create&quot;, method = POST, consumes = APPLICATION_JSON_VALUE,
+            produces = APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;List&lt;String&gt;&gt; upsertSubNetwork(
+            @Valid @RequestBody List&lt;CloudSubnetCreateRequest&gt; request) {
+<span class="nc" id="L48">        return ResponseEntity.ok().body(cloudSubnetService.upsertSubNetwork(request));</span>
+    }
+
+    @RequestMapping(value = &quot;/cloud/subnet/details/component/{componentId}&quot;, method = GET, produces = APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;Collection&lt;CloudSubNetwork&gt;&gt; getSubNetworkDetailsByComponentId(
+            @PathVariable String componentId) {
+<span class="nc" id="L54">        return ResponseEntity.ok().body(cloudSubnetService.getSubNetworkDetailsByComponentId(componentId));</span>
+    }
+
+    @RequestMapping(value = &quot;/cloud/subnet/details/account/{accountNumber}&quot;, method = GET, produces = APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;Collection&lt;CloudSubNetwork&gt;&gt; getSubNetworkDetailsByAccount(
+            @PathVariable String accountNumber) {
+<span class="nc" id="L60">        return ResponseEntity.ok().body(cloudSubnetService.getSubNetworkDetailsByAccount(accountNumber));</span>
+    }
+
+    @RequestMapping(value = &quot;/cloud/subnet/details/subnets/{subnetIds}&quot;, method = GET, produces = APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;Collection&lt;CloudSubNetwork&gt;&gt; getSubNetworkDetailsBySubnetIds(
+            @PathVariable List&lt;String&gt; subnetIds) {
+<span class="nc" id="L66">        return ResponseEntity.ok().body(cloudSubnetService.getSubNetworkDetailsBySubnetIds(subnetIds));</span>
+    }
+
+    @RequestMapping(value = &quot;/cloud/subnet/details/tags&quot;, method = POST, consumes = APPLICATION_JSON_VALUE, produces = APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;Collection&lt;CloudSubNetwork&gt;&gt; getSubNetworkDetailsByTag(
+            @Valid @RequestBody List&lt;NameValue&gt; tags) {
+<span class="nc" id="L72">        return ResponseEntity.ok().body(cloudSubnetService.getSubNetworkDetailsByTags(tags));</span>
+    }
+
+    @RequestMapping(value = &quot;/cloud/subnet/aggregate/{componentId}&quot;, method = GET, produces = APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;CloudSubNetworkAggregatedResponse&gt; getSubNetworkAggregatedData(
+            @PathVariable String componentId) {
+<span class="nc" id="L78">        return ResponseEntity.ok().body(cloudSubnetService.getSubNetworkAggregatedData(componentId));</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

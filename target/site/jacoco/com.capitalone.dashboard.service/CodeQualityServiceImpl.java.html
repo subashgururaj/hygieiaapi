@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CodeQualityServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.service</a> &gt; <span class="el_source">CodeQualityServiceImpl.java</span></div><h1>CodeQualityServiceImpl.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.service;
+
+import com.capitalone.dashboard.misc.HygieiaException;
+import com.capitalone.dashboard.model.CodeQuality;
+import com.capitalone.dashboard.model.CodeQualityMetric;
+import com.capitalone.dashboard.model.CodeQualityType;
+import com.capitalone.dashboard.model.Collector;
+import com.capitalone.dashboard.model.CollectorItem;
+import com.capitalone.dashboard.model.CollectorType;
+import com.capitalone.dashboard.model.Component;
+import com.capitalone.dashboard.model.DataResponse;
+import com.capitalone.dashboard.model.QCodeQuality;
+import com.capitalone.dashboard.repository.CodeQualityRepository;
+import com.capitalone.dashboard.repository.CollectorRepository;
+import com.capitalone.dashboard.repository.ComponentRepository;
+import com.capitalone.dashboard.request.CodeQualityCreateRequest;
+import com.capitalone.dashboard.request.CodeQualityRequest;
+import com.capitalone.dashboard.request.CollectorRequest;
+import com.google.common.base.Objects;
+import com.google.common.collect.Iterables;
+import com.mysema.query.BooleanBuilder;
+import org.apache.commons.lang.StringUtils;
+import org.bson.types.ObjectId;
+import org.joda.time.LocalDate;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.stereotype.Service;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+@Service
+public class CodeQualityServiceImpl implements CodeQualityService {
+
+    private final CodeQualityRepository codeQualityRepository;
+    private final ComponentRepository componentRepository;
+    private final CollectorRepository collectorRepository;
+    private final CollectorService collectorService;
+
+    @Autowired
+    public CodeQualityServiceImpl(CodeQualityRepository codeQualityRepository,
+                                  ComponentRepository componentRepository,
+                                  CollectorRepository collectorRepository,
+<span class="fc" id="L46">                                  CollectorService collectorService) {</span>
+<span class="fc" id="L47">        this.codeQualityRepository = codeQualityRepository;</span>
+<span class="fc" id="L48">        this.componentRepository = componentRepository;</span>
+<span class="fc" id="L49">        this.collectorRepository = collectorRepository;</span>
+<span class="fc" id="L50">        this.collectorService = collectorService;</span>
+<span class="fc" id="L51">    }</span>
+
+    @Override
+    public DataResponse&lt;Iterable&lt;CodeQuality&gt;&gt; search(CodeQualityRequest request) {
+<span class="nc bnc" id="L55" title="All 2 branches missed.">        if (request == null) {</span>
+<span class="nc" id="L56">            return emptyResponse();</span>
+        }
+
+<span class="nc bnc" id="L59" title="All 2 branches missed.">        if (request.getType() == null) { // return whole model</span>
+            // TODO: but the dataresponse needs changing.. the timestamp breaks this ability.
+//            Iterable&lt;CodeQuality&gt; concatinatedResult = ImmutableList.of();
+//            for (CodeQualityType type : CodeQualityType.values()) {
+//                request.setType(type);
+//                DataResponse&lt;Iterable&lt;CodeQuality&gt;&gt; result = searchType(request);
+//                Iterables.concat(concatinatedResult, result.getResult());
+//            }
+<span class="nc" id="L67">            return emptyResponse();</span>
+        }
+
+<span class="nc" id="L70">        return searchType(request);</span>
+    }
+
+    private DataResponse&lt;Iterable&lt;CodeQuality&gt;&gt; emptyResponse() {
+<span class="nc" id="L74">        return new DataResponse&lt;&gt;(null, System.currentTimeMillis());</span>
+    }
+
+    private DataResponse&lt;Iterable&lt;CodeQuality&gt;&gt; searchType(CodeQualityRequest request) {
+<span class="nc" id="L78">        CollectorItem item = getCollectorItem(request);</span>
+<span class="nc bnc" id="L79" title="All 2 branches missed.">        if (item == null) {</span>
+<span class="nc" id="L80">            return emptyResponse();</span>
+        }
+
+<span class="nc" id="L83">        QCodeQuality quality = new QCodeQuality(&quot;quality&quot;);</span>
+<span class="nc" id="L84">        BooleanBuilder builder = new BooleanBuilder();</span>
+
+<span class="nc" id="L86">        builder.and(quality.collectorItemId.eq(item.getId()));</span>
+
+<span class="nc bnc" id="L88" title="All 2 branches missed.">        if (request.getNumberOfDays() != null) {</span>
+<span class="nc" id="L89">            long endTimeTarget =</span>
+<span class="nc" id="L90">                    new LocalDate().minusDays(request.getNumberOfDays()).toDate().getTime();</span>
+<span class="nc" id="L91">            builder.and(quality.timestamp.goe(endTimeTarget));</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">        } else if (request.validDateRange()) {</span>
+<span class="nc" id="L93">            builder.and(quality.timestamp.between(request.getDateBegins(), request.getDateEnds()));</span>
+        }
+        Iterable&lt;CodeQuality&gt; result;
+<span class="nc bnc" id="L96" title="All 2 branches missed.">        if (request.getMax() == null) {</span>
+<span class="nc" id="L97">            result = codeQualityRepository.findAll(builder.getValue(), quality.timestamp.desc());</span>
+        } else {
+<span class="nc" id="L99">            PageRequest pageRequest =</span>
+<span class="nc" id="L100">                    new PageRequest(0, request.getMax(), Sort.Direction.DESC, &quot;timestamp&quot;);</span>
+<span class="nc" id="L101">            result = codeQualityRepository.findAll(builder.getValue(), pageRequest).getContent();</span>
+        }
+<span class="nc" id="L103">        String instanceUrl = (String)item.getOptions().get(&quot;instanceUrl&quot;);</span>
+<span class="nc" id="L104">        String projectId = (String) item.getOptions().get(&quot;projectId&quot;);</span>
+<span class="nc" id="L105">        String reportUrl = getReportURL(instanceUrl,&quot;dashboard/index/&quot;,projectId);</span>
+<span class="nc" id="L106">        Collector collector = collectorRepository.findOne(item.getCollectorId());</span>
+<span class="nc bnc" id="L107" title="All 2 branches missed.">        long lastExecuted = (collector == null) ? 0 : collector.getLastExecuted();</span>
+<span class="nc" id="L108">        return new DataResponse&lt;&gt;(result, lastExecuted,reportUrl);</span>
+    }
+
+
+    protected CollectorItem getCollectorItem(CodeQualityRequest request) {
+<span class="fc" id="L113">        Component component = componentRepository.findOne(request.getComponentId());</span>
+<span class="pc bpc" id="L114" title="1 of 2 branches missed.">        if (component == null) {</span>
+<span class="fc" id="L115">            return null;</span>
+        }
+
+<span class="nc" id="L118">        CodeQualityType qualityType = Objects.firstNonNull(request.getType(), CodeQualityType.StaticAnalysis);</span>
+
+<span class="nc" id="L120">        return component.getLastUpdatedCollectorItemForType(qualityType.collectorType());</span>
+    }
+
+    protected CodeQuality createCodeQuality(CodeQualityCreateRequest request) throws HygieiaException {
+        /*
+          Step 1: create Collector if not there
+          Step 2: create Collector item if not there
+          Step 3: Insert Quality data if new. If existing, update it.
+         */
+<span class="fc" id="L129">        Collector collector = createCollector(request);</span>
+
+<span class="pc bpc" id="L131" title="1 of 2 branches missed.">        if (collector == null) {</span>
+<span class="nc" id="L132">            throw new HygieiaException(&quot;Failed creating code quality collector.&quot;, HygieiaException.COLLECTOR_CREATE_ERROR);</span>
+        }
+
+<span class="fc" id="L135">        CollectorItem collectorItem = createCollectorItem(collector, request);</span>
+
+<span class="pc bpc" id="L137" title="1 of 2 branches missed.">        if (collectorItem == null) {</span>
+<span class="nc" id="L138">            throw new HygieiaException(&quot;Failed creating code quality collector item.&quot;, HygieiaException.COLLECTOR_ITEM_CREATE_ERROR);</span>
+        }
+
+<span class="fc" id="L141">        CodeQuality quality = createCodeQuality(collectorItem, request);</span>
+
+<span class="pc bpc" id="L143" title="1 of 2 branches missed.">        if (quality == null) {</span>
+<span class="nc" id="L144">            throw new HygieiaException(&quot;Failed inserting/updating Code Quality information.&quot;, HygieiaException.ERROR_INSERTING_DATA);</span>
+        }
+
+<span class="fc" id="L147">        return quality;</span>
+
+    }
+
+    @Override
+    public String create(CodeQualityCreateRequest request) throws HygieiaException {
+<span class="fc" id="L153">        CodeQuality quality = createCodeQuality(request);</span>
+<span class="fc" id="L154">        return quality.getId().toString();</span>
+    }
+
+    @Override
+    public String createV2(CodeQualityCreateRequest request) throws HygieiaException {
+<span class="fc" id="L159">        CodeQuality quality = createCodeQuality(request);</span>
+<span class="fc" id="L160">        return quality.getId().toString() + &quot;,&quot; + quality.getCollectorItemId().toString();</span>
+
+    }
+
+    private Collector createCollector(CodeQualityCreateRequest request) {
+<span class="fc" id="L165">        CollectorRequest collectorReq = new CollectorRequest();</span>
+<span class="pc bpc" id="L166" title="1 of 2 branches missed.">        collectorReq.setName(StringUtils.isEmpty(request.getToolName()) ? &quot;Sonar&quot; : request.getToolName());</span>
+<span class="fc" id="L167">        collectorReq.setCollectorType(CollectorType.CodeQuality);</span>
+<span class="fc" id="L168">        Collector col = collectorReq.toCollector();</span>
+<span class="fc" id="L169">        col.setEnabled(true);</span>
+<span class="fc" id="L170">        col.setOnline(true);</span>
+<span class="fc" id="L171">        col.setLastExecuted(System.currentTimeMillis());</span>
+<span class="fc" id="L172">        return collectorService.createCollector(col);</span>
+    }
+
+    private CollectorItem createCollectorItem(Collector collector, CodeQualityCreateRequest request) throws HygieiaException {
+<span class="fc" id="L176">        CollectorItem tempCi = new CollectorItem();</span>
+<span class="fc" id="L177">        tempCi.setCollectorId(collector.getId());</span>
+<span class="fc" id="L178">        tempCi.setDescription(request.getProjectName());</span>
+<span class="fc" id="L179">        tempCi.setPushed(true);</span>
+<span class="fc" id="L180">        tempCi.setLastUpdated(System.currentTimeMillis());</span>
+<span class="fc" id="L181">        Map&lt;String, Object&gt; option = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L182">        option.put(&quot;projectName&quot;, request.getProjectName());</span>
+<span class="fc" id="L183">        option.put(&quot;projectId&quot;, request.getProjectId());</span>
+<span class="fc" id="L184">        option.put(&quot;instanceUrl&quot;, request.getServerUrl());</span>
+<span class="fc" id="L185">        tempCi.getOptions().putAll(option);</span>
+<span class="fc" id="L186">        tempCi.setNiceName(request.getNiceName());</span>
+
+<span class="pc bpc" id="L188" title="1 of 2 branches missed.">        if (StringUtils.isEmpty(tempCi.getNiceName())) {</span>
+<span class="fc" id="L189">            return collectorService.createCollectorItem(tempCi);</span>
+        }
+<span class="nc" id="L191">        return collectorService.createCollectorItemByNiceNameAndProjectId(tempCi, request.getProjectId());</span>
+    }
+
+    private CodeQuality createCodeQuality(CollectorItem collectorItem, CodeQualityCreateRequest request) {
+<span class="fc" id="L195">        CodeQuality quality = codeQualityRepository.findByCollectorItemIdAndTimestamp(</span>
+<span class="fc" id="L196">                collectorItem.getId(), request.getTimestamp());</span>
+<span class="pc bpc" id="L197" title="1 of 2 branches missed.">        if (quality == null) {</span>
+<span class="fc" id="L198">            quality = new CodeQuality();</span>
+        }
+<span class="fc" id="L200">        quality.setCollectorItemId(collectorItem.getId());</span>
+<span class="fc" id="L201">        quality.setBuildId(new ObjectId(request.getHygieiaId()));</span>
+<span class="fc" id="L202">        quality.setName(request.getProjectName());</span>
+<span class="fc" id="L203">        quality.setType(CodeQualityType.StaticAnalysis);</span>
+<span class="fc" id="L204">        quality.setUrl(request.getProjectUrl());</span>
+<span class="fc" id="L205">        quality.setVersion(request.getProjectVersion());</span>
+<span class="fc" id="L206">        quality.setTimestamp(System.currentTimeMillis());</span>
+<span class="fc bfc" id="L207" title="All 2 branches covered.">        for (CodeQualityMetric cm : request.getMetrics()) {</span>
+<span class="fc" id="L208">            quality.getMetrics().add(cm);</span>
+<span class="fc" id="L209">        }</span>
+<span class="fc" id="L210">        return codeQualityRepository.save(quality); // Save = Update (if ID present) or Insert (if ID not there)</span>
+    }
+
+    // get projectUrl and projectId from collectorItem and form reportUrl
+    private String getReportURL(String projectUrl,String path,String projectId) {
+<span class="nc" id="L215">        StringBuilder sb = new StringBuilder(projectUrl);</span>
+<span class="nc bnc" id="L216" title="All 2 branches missed.">        if(!projectUrl.endsWith(&quot;/&quot;)) {</span>
+<span class="nc" id="L217">            sb.append(&quot;/&quot;);</span>
+        }
+<span class="nc" id="L219">        sb.append(path)</span>
+<span class="nc" id="L220">                .append(projectId);</span>
+<span class="nc" id="L221">        return sb.toString();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

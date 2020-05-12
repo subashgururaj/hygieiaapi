@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ZCommitController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.rest</a> &gt; <span class="el_source">ZCommitController.java</span></div><h1>ZCommitController.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.rest;
+
+import com.capitalone.dashboard.misc.HygieiaException;
+import com.capitalone.dashboard.model.Commit;
+import com.capitalone.dashboard.model.DataResponse;
+import com.capitalone.dashboard.request.CommitRequest;
+import com.capitalone.dashboard.service.CommitService;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.ParseException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import javax.validation.Valid;
+
+import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
+import static org.springframework.web.bind.annotation.RequestMethod.GET;
+import static org.springframework.web.bind.annotation.RequestMethod.POST;
+
+@RestController
+public class ZCommitController {
+
+
+
+    private final CommitService commitService;
+
+    @Autowired
+<span class="fc" id="L31">    public ZCommitController(CommitService commitService) {</span>
+<span class="fc" id="L32">        this.commitService = commitService;</span>
+<span class="fc" id="L33">    }</span>
+
+    @RequestMapping(value = &quot;/commit&quot;, method = GET, produces = APPLICATION_JSON_VALUE)
+    public DataResponse&lt;Iterable&lt;Commit&gt;&gt; search(@Valid CommitRequest request) {
+<span class="fc" id="L37">        return commitService.search(request);</span>
+    }
+
+
+    @RequestMapping(value = &quot;/commit/github/v3&quot;, method = POST,
+            consumes = APPLICATION_JSON_VALUE, produces = APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;String&gt; createGitHubv3(@RequestBody JSONObject request) throws ParseException, HygieiaException {
+<span class="fc" id="L44">        String response = commitService.createFromGitHubv3(request);</span>
+<span class="fc" id="L45">        return ResponseEntity</span>
+<span class="fc" id="L46">                .status(HttpStatus.CREATED)</span>
+<span class="fc" id="L47">                .body(response);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

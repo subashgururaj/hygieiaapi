@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ScoreDashboardServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.service</a> &gt; <span class="el_source">ScoreDashboardServiceImpl.java</span></div><h1>ScoreDashboardServiceImpl.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.service;
+
+import com.capitalone.dashboard.model.Collector;
+import com.capitalone.dashboard.model.CollectorItem;
+import com.capitalone.dashboard.model.CollectorType;
+import com.capitalone.dashboard.model.Dashboard;
+import com.capitalone.dashboard.model.score.ScoreCollectorItem;
+import com.capitalone.dashboard.repository.CollectorItemRepository;
+import com.capitalone.dashboard.repository.ScoreCollectorItemRepository;
+import org.apache.commons.collections.CollectionUtils;
+import org.apache.log4j.Logger;
+import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service
+public class ScoreDashboardServiceImpl implements ScoreDashboardService {
+
+<span class="fc" id="L21">  private static final Logger LOGGER = Logger.getLogger(ScoreDashboardServiceImpl.class);</span>
+
+  private final CollectorService collectorService;
+  private final ScoreCollectorItemRepository scoreCollectorItemRepository;
+  private final CollectorItemRepository collectorItemRepository;
+
+  @Autowired
+  public ScoreDashboardServiceImpl(
+    CollectorService collectorService,
+    ScoreCollectorItemRepository scoreCollectorItemRepository,
+<span class="fc" id="L31">    CollectorItemRepository collectorItemRepository) {</span>
+<span class="fc" id="L32">    this.collectorService = collectorService;</span>
+<span class="fc" id="L33">    this.collectorItemRepository = collectorItemRepository;</span>
+<span class="fc" id="L34">    this.scoreCollectorItemRepository = scoreCollectorItemRepository;</span>
+<span class="fc" id="L35">  }</span>
+
+  @Override
+  public CollectorItem addScoreForDashboardIfScoreEnabled(Dashboard dashboard) {
+<span class="fc bfc" id="L39" title="All 2 branches covered.">    if (dashboard.isScoreEnabled()) {</span>
+<span class="fc" id="L40">      return addScoreForDashboard(dashboard);</span>
+    }
+<span class="fc" id="L42">    return null;</span>
+  }
+
+  @Override
+  public CollectorItem editScoreForDashboard(Dashboard dashboard) {
+<span class="fc bfc" id="L47" title="All 2 branches covered.">    if (dashboard.isScoreEnabled()) {</span>
+<span class="fc" id="L48">      return addScoreForDashboard(dashboard);</span>
+    } else {
+<span class="fc" id="L50">      return disableScoreForDashboard(dashboard);</span>
+    }
+
+  }
+
+  @Override
+  public CollectorItem addScoreForDashboard(Dashboard dashboard) {
+<span class="fc" id="L57">    return createScoreCollectorItem(dashboard.getId());</span>
+  }
+
+  @Override
+  public CollectorItem disableScoreForDashboard(Dashboard dashboard) {
+<span class="fc" id="L62">    return disableScoreCollectorItem(dashboard.getId());</span>
+  }
+
+  private CollectorItem disableScoreCollectorItem(ObjectId dashboardId) {
+    Collector scoreCollector;
+<span class="fc" id="L67">    List&lt;Collector&gt; collectors = collectorService.collectorsByType(CollectorType.Score);</span>
+<span class="fc bfc" id="L68" title="All 2 branches covered.">    if (CollectionUtils.isEmpty(collectors)) {</span>
+<span class="fc" id="L69">      LOGGER.warn(&quot;No Score Collector Type found&quot;);</span>
+<span class="fc" id="L70">      return null;</span>
+    } else {
+<span class="fc" id="L72">      scoreCollector = collectors.get(0);</span>
+    }
+
+<span class="fc" id="L75">    ScoreCollectorItem scoreCollectorItem = this.scoreCollectorItemRepository.findCollectorItemByCollectorIdAndDashboardId(</span>
+<span class="fc" id="L76">      scoreCollector.getId(),</span>
+      dashboardId
+    );
+
+<span class="pc bpc" id="L80" title="1 of 2 branches missed.">    if (null == scoreCollectorItem) {</span>
+<span class="nc" id="L81">      LOGGER.warn(&quot;No Score Collector item found&quot;);</span>
+<span class="nc" id="L82">      return null;</span>
+    }
+
+<span class="fc" id="L85">    scoreCollectorItem.setEnabled(false);</span>
+
+<span class="fc" id="L87">    return this.collectorItemRepository.save(scoreCollectorItem);</span>
+  }
+
+
+  private CollectorItem createScoreCollectorItem(ObjectId dashboardId) {
+    Collector scoreCollector;
+<span class="fc" id="L93">    List&lt;Collector&gt; collectors = collectorService.collectorsByType(CollectorType.Score);</span>
+<span class="pc bpc" id="L94" title="1 of 2 branches missed.">    if (CollectionUtils.isNotEmpty(collectors)) {</span>
+<span class="fc" id="L95">      scoreCollector = collectors.get(0);</span>
+    } else {
+<span class="nc" id="L97">      scoreCollector = collectorService.createCollector(generateScoreCollector());</span>
+    }
+
+<span class="fc" id="L100">    ScoreCollectorItem scoreCollectorItem = generateScoreCollectorItem(</span>
+      dashboardId,
+<span class="fc" id="L102">      scoreCollector.getId()</span>
+    );
+
+<span class="fc" id="L105">    return collectorService.createCollectorItem(scoreCollectorItem);</span>
+  }
+
+  private Collector generateScoreCollector() {
+<span class="nc" id="L109">    Collector scoreCollector = new Collector();</span>
+<span class="nc" id="L110">    scoreCollector.setName(&quot;Score&quot;);</span>
+<span class="nc" id="L111">    scoreCollector.setCollectorType(CollectorType.Score);</span>
+<span class="nc" id="L112">    scoreCollector.setOnline(true);</span>
+<span class="nc" id="L113">    scoreCollector.setEnabled(true);</span>
+<span class="nc" id="L114">    return scoreCollector;</span>
+  }
+
+
+  private ScoreCollectorItem generateScoreCollectorItem(ObjectId dashboardId, ObjectId collectorId) {
+<span class="fc" id="L119">    ScoreCollectorItem item = new ScoreCollectorItem();</span>
+<span class="fc" id="L120">    item.setCollectorId(collectorId);</span>
+<span class="fc" id="L121">    item.setDashboardId(dashboardId);</span>
+<span class="fc" id="L122">    item.setDescription(dashboardId.toString());</span>
+<span class="fc" id="L123">    item.setLastUpdated(System.currentTimeMillis());</span>
+<span class="fc" id="L124">    item.setEnabled(true);</span>
+<span class="fc" id="L125">    return item;</span>
+  }
+
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

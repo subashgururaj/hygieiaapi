@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MonitorProxyConfig.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.config.monitor</a> &gt; <span class="el_source">MonitorProxyConfig.java</span></div><h1>MonitorProxyConfig.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.config.monitor;
+
+import java.net.Authenticator;
+import java.net.InetSocketAddress;
+import java.net.PasswordAuthentication;
+import java.net.Proxy;
+import java.util.Locale;
+
+import org.apache.commons.lang.StringUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+import com.capitalone.dashboard.model.monitor.MonitorProxySettings;
+
+@Configuration
+<span class="fc" id="L17">public class MonitorProxyConfig {</span>
+
+	@Autowired
+	private MonitorProxySettings monitorProxySettings;
+	
+	@Bean
+	public Proxy proxy() {
+<span class="fc" id="L24">		Proxy proxy = Proxy.NO_PROXY;</span>
+		
+<span class="fc" id="L26">		String host = monitorProxySettings.getHost();</span>
+<span class="fc bfc" id="L27" title="All 2 branches covered.">		if(StringUtils.isNotBlank(host)) {</span>
+<span class="fc" id="L28">			String type = monitorProxySettings.getType();</span>
+<span class="fc bfc" id="L29" title="All 2 branches covered.">			Proxy.Type proxyType = StringUtils.isBlank(type) ? Proxy.Type.HTTP : Proxy.Type.valueOf(type.toUpperCase(Locale.ENGLISH));</span>
+			
+<span class="fc bfc" id="L31" title="All 2 branches covered.">			if(proxyType == Proxy.Type.DIRECT) {</span>
+<span class="fc" id="L32">				return proxy;</span>
+			}
+    		
+<span class="fc" id="L35">    		proxy = new Proxy(proxyType, new InetSocketAddress(host, monitorProxySettings.getPort()));</span>
+<span class="fc" id="L36">            Authenticator.setDefault(authenticator());	</span>
+		}
+		
+<span class="fc" id="L39">		return proxy;</span>
+	}
+	
+	@Bean
+	public Authenticator authenticator() {
+<span class="fc" id="L44">		return new ProxyAuthenticator(proxyPasswordAuthentication());</span>
+	}
+	
+	@Bean
+	public PasswordAuthentication proxyPasswordAuthentication() {
+<span class="fc bfc" id="L49" title="All 2 branches covered.">		if(StringUtils.isNotBlank(monitorProxySettings.getHost())) {</span>
+<span class="fc" id="L50">			String username = monitorProxySettings.getUsername();</span>
+<span class="fc" id="L51">			String password = monitorProxySettings.getPassword();</span>
+			
+<span class="pc bpc" id="L53" title="1 of 4 branches missed.">			if(StringUtils.isBlank(username) || StringUtils.isBlank(password)) {</span>
+<span class="fc" id="L54">				throw new IllegalArgumentException(&quot;When enabling proxy access for the Monitor widget, username and password is required. Please ensure monitor.proxy.username and monitor.proxy.password are supplied.&quot;);</span>
+			}
+			
+<span class="fc" id="L57">			return new PasswordAuthentication(username, password.toCharArray());</span>
+		}
+		
+<span class="fc" id="L60">		return null;</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

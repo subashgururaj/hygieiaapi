@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SsoAuthenticationUtil.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.auth.sso</a> &gt; <span class="el_source">SsoAuthenticationUtil.java</span></div><h1>SsoAuthenticationUtil.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.auth.sso;
+
+import java.util.ArrayList;
+import java.util.Map;
+
+import org.apache.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.web.authentication.preauth.PreAuthenticatedAuthenticationToken;
+import org.springframework.stereotype.Component;
+
+import com.capitalone.dashboard.auth.AuthProperties;
+import com.capitalone.dashboard.auth.ldap.CustomUserDetails;
+import com.capitalone.dashboard.model.AuthType;
+
+@Component
+<span class="fc" id="L18">public class SsoAuthenticationUtil {</span>
+<span class="fc" id="L19">	private static final Logger LOGGER = Logger.getLogger(SsoAuthenticationUtil.class);</span>
+	
+	@Autowired
+	private AuthProperties authProperties;
+	
+	CustomUserDetails createUser(Map&lt;String, String&gt; userInfo) {
+<span class="nc" id="L25">		CustomUserDetails customUserDetails = null;</span>
+		
+		try {
+<span class="nc bnc" id="L28" title="All 2 branches missed.">			if (userInfo.get(authProperties.getUserEid()) != null) {</span>
+<span class="nc" id="L29">				customUserDetails = new CustomUserDetails();</span>
+				
+<span class="nc" id="L31">				customUserDetails.setUsername(&quot;&quot; + userInfo.get(authProperties.getUserEid()));</span>
+<span class="nc" id="L32">				customUserDetails.setAccountNonExpired(true);</span>
+<span class="nc" id="L33">				customUserDetails.setAccountNonLocked(true);</span>
+<span class="nc" id="L34">				customUserDetails.setCredentialsNonExpired(true);</span>
+<span class="nc" id="L35">				customUserDetails.setEnabled(true);</span>
+<span class="nc" id="L36">				customUserDetails.setAuthorities(new ArrayList&lt;GrantedAuthority&gt;());</span>
+				
+<span class="nc" id="L38">				String userFirstName = userInfo.get(authProperties.getUserFirstName());</span>
+<span class="nc bnc" id="L39" title="All 2 branches missed.">				if (userFirstName != null) {</span>
+<span class="nc" id="L40">					LOGGER.info(&quot;givenName from attr: &quot; + userFirstName);</span>
+<span class="nc" id="L41">					customUserDetails.setFirstName(&quot;&quot; + userFirstName);</span>
+				}
+
+<span class="nc" id="L44">				String userInitials = userInfo.get(authProperties.getUserMiddelInitials());</span>
+<span class="nc bnc" id="L45" title="All 2 branches missed.">				if (userInitials != null) {</span>
+<span class="nc" id="L46">					LOGGER.info(&quot;initials from attr: &quot; + userInitials);</span>
+<span class="nc" id="L47">					customUserDetails.setMiddleName(&quot;&quot; + userInitials);</span>
+				}
+				
+<span class="nc" id="L50">				String userLastName = userInfo.get(authProperties.getUserLastName());</span>
+<span class="nc bnc" id="L51" title="All 2 branches missed.">				if (userLastName != null) {</span>
+<span class="nc" id="L52">					LOGGER.info(&quot;sn from attr: &quot; + userLastName);</span>
+<span class="nc" id="L53">					customUserDetails.setLastName(&quot;&quot; + userLastName);</span>
+				}
+				
+<span class="nc" id="L56">				String userDisplayName = userInfo.get(authProperties.getUserDisplayName());</span>
+<span class="nc bnc" id="L57" title="All 2 branches missed.">				if (userDisplayName != null) {</span>
+<span class="nc" id="L58">					LOGGER.info(&quot;displayName from attr: &quot; + userDisplayName);</span>
+<span class="nc" id="L59">					customUserDetails.setDisplayName(&quot;&quot; + userDisplayName);</span>
+				}
+				
+<span class="nc" id="L62">				String userEmail = userInfo.get(authProperties.getUserEmail());</span>
+<span class="nc bnc" id="L63" title="All 2 branches missed.">				if (userEmail != null) {</span>
+<span class="nc" id="L64">					LOGGER.info(&quot;mail from attr: &quot; + userEmail);</span>
+<span class="nc" id="L65">					customUserDetails.setEmailAddress(&quot;&quot; + userEmail);</span>
+				}
+<span class="nc" id="L67">			}</span>
+			else {
+<span class="nc" id="L69">				LOGGER.error(&quot;Authenticated user cannot be loaded&quot;);</span>
+			}
+<span class="nc" id="L71">		} catch (Exception e) {</span>
+<span class="nc" id="L72">			LOGGER.error(&quot;Exception in mapping user details: &quot; + e);</span>
+<span class="nc" id="L73">		}</span>
+<span class="nc" id="L74">		return customUserDetails;</span>
+	}
+
+	Authentication createSuccessfulAuthentication(CustomUserDetails user) {
+<span class="nc bnc" id="L78" title="All 2 branches missed.">		if(user == null) {</span>
+<span class="nc" id="L79">			return null;</span>
+		}
+<span class="nc" id="L81">		PreAuthenticatedAuthenticationToken result = new PreAuthenticatedAuthenticationToken(</span>
+<span class="nc" id="L82">				user, null, user.getAuthorities());</span>
+		
+		// -- SSO Authentication will fetch the user details from LDAP system. The Authentication Type therefore can be given as LDAP.
+<span class="nc" id="L85">		result.setDetails(AuthType.LDAP);</span>
+<span class="nc" id="L86">		return result;</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

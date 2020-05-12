@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CloudSubnetServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.service</a> &gt; <span class="el_source">CloudSubnetServiceImpl.java</span></div><h1>CloudSubnetServiceImpl.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.service;
+
+import com.capitalone.dashboard.config.collector.CloudConfig;
+import com.capitalone.dashboard.model.CloudSubNetwork;
+import com.capitalone.dashboard.model.CollectorItem;
+import com.capitalone.dashboard.model.CollectorType;
+import com.capitalone.dashboard.model.Component;
+import com.capitalone.dashboard.model.NameValue;
+import com.capitalone.dashboard.repository.CloudSubNetworkRepository;
+import com.capitalone.dashboard.repository.ComponentRepository;
+import com.capitalone.dashboard.request.CloudInstanceListRefreshRequest;
+import com.capitalone.dashboard.request.CloudSubnetCreateRequest;
+import com.capitalone.dashboard.response.CloudSubNetworkAggregatedResponse;
+import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+@Service
+public class CloudSubnetServiceImpl implements CloudSubnetService {
+
+    private final CloudSubNetworkRepository cloudSubNetworkRepository;
+    private final ComponentRepository componentRepository;
+
+    @Autowired
+    public CloudSubnetServiceImpl(CloudSubNetworkRepository cloudSubNetworkRepository,
+<span class="fc" id="L33">                                  ComponentRepository cloudConfigRepository) {</span>
+<span class="fc" id="L34">        this.cloudSubNetworkRepository = cloudSubNetworkRepository;</span>
+<span class="fc" id="L35">        this.componentRepository = cloudConfigRepository;</span>
+<span class="fc" id="L36">    }</span>
+
+
+    private CollectorItem getCollectorItem(ObjectId componentId) {
+<span class="nc" id="L40">        Component component = componentRepository.findOne(componentId);</span>
+<span class="nc bnc" id="L41" title="All 2 branches missed.">        if (CollectionUtils.isEmpty(component.getCollectorItems())) return null;</span>
+<span class="nc" id="L42">        return component.getCollectorItems().get(CollectorType.Cloud).get(0);</span>
+    }
+
+    public Collection&lt;CloudSubNetwork&gt; getSubNetworkDetails(CollectorItem item) {
+<span class="nc" id="L46">        Collection&lt;CloudSubNetwork&gt; subnets = new HashSet&lt;&gt;();</span>
+<span class="nc bnc" id="L47" title="All 4 branches missed.">        if ((item != null) &amp;&amp; (item instanceof CloudConfig)) {</span>
+<span class="nc" id="L48">            CloudConfig config = (CloudConfig) item;</span>
+<span class="nc" id="L49">            subnets.addAll(getSubNetworkDetailsByTags(config.getTags()));</span>
+        }
+<span class="nc" id="L51">        return subnets;</span>
+    }
+
+    @Override
+    public Collection&lt;String&gt; refreshSubnets(CloudInstanceListRefreshRequest request) {
+
+<span class="fc" id="L57">        Collection&lt;CloudSubNetwork&gt; existing = cloudSubNetworkRepository.findByAccountNumber(request.getAccountNumber());</span>
+<span class="fc" id="L58">        Set&lt;CloudSubNetwork&gt; toDelete = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L59">        Set&lt;String&gt; deletedIds = new HashSet&lt;&gt;();</span>
+<span class="pc bpc" id="L60" title="2 of 4 branches missed.">        if (CollectionUtils.isEmpty(request.getInstanceIds()) || CollectionUtils.isEmpty(existing))</span>
+<span class="nc" id="L61">            return new ArrayList&lt;&gt;();</span>
+
+<span class="fc bfc" id="L63" title="All 2 branches covered.">        for (CloudSubNetwork ci : existing) {</span>
+<span class="fc bfc" id="L64" title="All 2 branches covered.">            if (!request.getInstanceIds().contains(ci.getSubnetId())) {</span>
+<span class="fc" id="L65">                toDelete.add(ci);</span>
+<span class="fc" id="L66">                deletedIds.add(ci.getSubnetId());</span>
+            }
+<span class="fc" id="L68">        }</span>
+<span class="pc bpc" id="L69" title="1 of 2 branches missed.">        if (CollectionUtils.isEmpty(toDelete)) {</span>
+<span class="nc" id="L70">            cloudSubNetworkRepository.delete(toDelete);</span>
+        }
+<span class="fc" id="L72">        return deletedIds;</span>
+    }
+
+    private CloudSubNetwork createSubnetworkObject(CloudSubnetCreateRequest request) {
+<span class="nc" id="L76">        CloudSubNetwork subnet = new CloudSubNetwork();</span>
+<span class="nc" id="L77">        subnet.setAccountNumber(request.getAccountNumber());</span>
+<span class="nc" id="L78">        subnet.setAvailableIPCount(Integer.parseInt(request.getAvailableIPCount()));</span>
+<span class="nc" id="L79">        subnet.setDefaultForZone(Boolean.parseBoolean(request.getDefaultForZone()));</span>
+<span class="nc" id="L80">        subnet.setState(request.getState());</span>
+<span class="nc" id="L81">        subnet.setVirtualNetworkId(request.getVirtualNetworkId());</span>
+<span class="nc" id="L82">        subnet.setZone(request.getZone());</span>
+<span class="nc" id="L83">        subnet.setCidrBlock(request.getCidrBlock());</span>
+<span class="nc" id="L84">        subnet.setCidrCount(Integer.parseInt(request.getCidrCount()));</span>
+<span class="nc" id="L85">        subnet.setCreationDate(Long.parseLong(request.getCreationDate()));</span>
+<span class="nc" id="L86">        subnet.setLastUpdateDate(Long.parseLong(request.getLastUpdateDate()));</span>
+<span class="nc" id="L87">        subnet.setSubnetId(request.getSubnetId());</span>
+<span class="nc" id="L88">        subnet.setUsedIPCount(Integer.parseInt(request.getUsedIPCount()));</span>
+<span class="nc" id="L89">        subnet.getTags().addAll(request.getTags());</span>
+<span class="nc" id="L90">        subnet.setIpUsage(request.getIpUsage());</span>
+<span class="nc" id="L91">        subnet.setSubscribedIPCount(Integer.parseInt(request.getSubscribedIPCount()));</span>
+<span class="nc" id="L92">        subnet.setSubscribedIPUsage(request.getSubscribedIPUsage());</span>
+<span class="nc" id="L93">        return subnet;</span>
+    }
+
+
+    private CloudSubNetwork updateSubnetworkObject(CloudSubnetCreateRequest request, CloudSubNetwork existing) {
+<span class="fc" id="L98">        setAccountNumber(request, existing);</span>
+<span class="fc" id="L99">        setAvailableIPCount(request, existing);</span>
+<span class="fc" id="L100">        setDefaultForZone(request, existing);</span>
+<span class="fc" id="L101">        setState(request, existing);</span>
+<span class="fc" id="L102">        setVirtualNetworkId(request, existing);</span>
+<span class="fc" id="L103">        setZone(request, existing);</span>
+<span class="fc" id="L104">        setCidrBlock(request, existing);</span>
+<span class="fc" id="L105">        setCidrCount(request, existing);</span>
+<span class="fc" id="L106">        setCreationDate(request, existing);</span>
+<span class="fc" id="L107">        setLastUpdateDate(request, existing);</span>
+<span class="fc" id="L108">        setSubnetId(request, existing);</span>
+<span class="fc" id="L109">        setUsedIPCount(request, existing);</span>
+<span class="fc" id="L110">        setIpUsage(request, existing);</span>
+<span class="fc" id="L111">        setSubscribedIPCount(request, existing);</span>
+<span class="fc" id="L112">        setSubscribedIPUsage(request, existing);</span>
+<span class="fc" id="L113">        setTags(request, existing);</span>
+
+<span class="fc" id="L115">        return existing;</span>
+    }
+
+    private void setTags(CloudSubnetCreateRequest request, CloudSubNetwork existing) {
+<span class="pc bpc" id="L119" title="1 of 2 branches missed.">        if (!CollectionUtils.isEmpty(request.getTags())) {</span>
+<span class="fc" id="L120">            existing.getTags().clear();</span>
+<span class="fc" id="L121">            existing.getTags().addAll(request.getTags());</span>
+        }
+<span class="fc" id="L123">        existing.getTags().addAll(request.getTags());</span>
+<span class="fc" id="L124">    }</span>
+
+    private void setSubscribedIPUsage(CloudSubnetCreateRequest request, CloudSubNetwork existing) {
+<span class="pc bpc" id="L127" title="1 of 2 branches missed.">        if (request.getSubscribedIPUsage() != null) existing.setSubscribedIPUsage(request.getSubscribedIPUsage());</span>
+<span class="fc" id="L128">    }</span>
+
+    private void setSubscribedIPCount(CloudSubnetCreateRequest request, CloudSubNetwork existing) {
+<span class="pc bpc" id="L131" title="1 of 2 branches missed.">        if (request.getSubscribedIPCount() != null) existing.setSubscribedIPCount(Integer.parseInt(request.getSubscribedIPCount()));</span>
+<span class="fc" id="L132">    }</span>
+
+    private void setIpUsage(CloudSubnetCreateRequest request, CloudSubNetwork existing) {
+<span class="pc bpc" id="L135" title="1 of 2 branches missed.">        if (request.getIpUsage() != null) existing.setIpUsage(request.getIpUsage());</span>
+<span class="fc" id="L136">    }</span>
+
+    private void setUsedIPCount(CloudSubnetCreateRequest request, CloudSubNetwork existing) {
+<span class="pc bpc" id="L139" title="1 of 2 branches missed.">        if (request.getUsedIPCount() != null) existing.setUsedIPCount(Integer.parseInt(request.getUsedIPCount()));</span>
+<span class="fc" id="L140">    }</span>
+
+    private void setSubnetId(CloudSubnetCreateRequest request, CloudSubNetwork existing) {
+<span class="pc bpc" id="L143" title="1 of 2 branches missed.">        if (request.getSubnetId() != null) existing.setSubnetId(request.getSubnetId());</span>
+<span class="fc" id="L144">    }</span>
+
+    private void setLastUpdateDate(CloudSubnetCreateRequest request, CloudSubNetwork existing) {
+<span class="pc bpc" id="L147" title="1 of 2 branches missed.">        if (request.getLastUpdateDate() != null)</span>
+<span class="fc" id="L148">            existing.setLastUpdateDate(Long.parseLong(request.getLastUpdateDate()));</span>
+<span class="fc" id="L149">    }</span>
+
+    private void setCreationDate(CloudSubnetCreateRequest request, CloudSubNetwork existing) {
+<span class="pc bpc" id="L152" title="1 of 2 branches missed.">        if (request.getCreationDate() != null) existing.setCreationDate(Long.parseLong(request.getCreationDate()));</span>
+<span class="fc" id="L153">    }</span>
+
+    private void setCidrCount(CloudSubnetCreateRequest request, CloudSubNetwork existing) {
+<span class="pc bpc" id="L156" title="1 of 2 branches missed.">        if (request.getCidrCount() != null) existing.setCidrCount(Integer.parseInt(request.getCidrCount()));</span>
+<span class="fc" id="L157">    }</span>
+
+    private void setCidrBlock(CloudSubnetCreateRequest request, CloudSubNetwork existing) {
+<span class="pc bpc" id="L160" title="1 of 2 branches missed.">        if (request.getCidrBlock() != null) existing.setCidrBlock(request.getCidrBlock());</span>
+<span class="fc" id="L161">    }</span>
+
+    private void setZone(CloudSubnetCreateRequest request, CloudSubNetwork existing) {
+<span class="pc bpc" id="L164" title="1 of 2 branches missed.">        if (request.getZone() != null) existing.setZone(request.getZone());</span>
+<span class="fc" id="L165">    }</span>
+
+    private void setVirtualNetworkId(CloudSubnetCreateRequest request, CloudSubNetwork existing) {
+<span class="pc bpc" id="L168" title="1 of 2 branches missed.">        if (request.getVirtualNetworkId() != null) existing.setVirtualNetworkId(request.getVirtualNetworkId());</span>
+<span class="fc" id="L169">    }</span>
+
+    private void setState(CloudSubnetCreateRequest request, CloudSubNetwork existing) {
+<span class="pc bpc" id="L172" title="1 of 2 branches missed.">        if (request.getState() != null) existing.setState(request.getState());</span>
+<span class="fc" id="L173">    }</span>
+
+    private void setDefaultForZone(CloudSubnetCreateRequest request, CloudSubNetwork existing) {
+<span class="pc bpc" id="L176" title="1 of 2 branches missed.">        if (request.getDefaultForZone() != null)</span>
+<span class="fc" id="L177">            existing.setDefaultForZone(Boolean.parseBoolean(request.getDefaultForZone()));</span>
+<span class="fc" id="L178">    }</span>
+
+    private void setAvailableIPCount(CloudSubnetCreateRequest request, CloudSubNetwork existing) {
+<span class="pc bpc" id="L181" title="1 of 2 branches missed.">        if (request.getAvailableIPCount() != null)</span>
+<span class="fc" id="L182">            existing.setAvailableIPCount(Integer.parseInt(request.getAvailableIPCount()));</span>
+<span class="fc" id="L183">    }</span>
+
+    private void setAccountNumber(CloudSubnetCreateRequest request, CloudSubNetwork existing) {
+<span class="pc bpc" id="L186" title="1 of 2 branches missed.">        if (request.getAccountNumber() != null) existing.setAccountNumber(request.getAccountNumber());</span>
+<span class="fc" id="L187">    }</span>
+
+    @Override
+    public List&lt;String&gt; upsertSubNetwork(List&lt;CloudSubnetCreateRequest&gt; subnets) {
+<span class="fc" id="L191">        List&lt;String&gt; objectIds = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L192" title="All 2 branches covered.">        for (CloudSubnetCreateRequest csn : subnets) {</span>
+<span class="fc" id="L193">            CloudSubNetwork existing = getSubNetworkDetailsBySubnetId(csn.getSubnetId());</span>
+<span class="pc bpc" id="L194" title="1 of 2 branches missed.">            if (existing == null) {</span>
+<span class="nc" id="L195">                CloudSubNetwork sn = cloudSubNetworkRepository.save(createSubnetworkObject(csn));</span>
+<span class="nc" id="L196">                objectIds.add(sn.getId().toString());</span>
+<span class="nc" id="L197">            } else {</span>
+<span class="fc" id="L198">                cloudSubNetworkRepository.save(updateSubnetworkObject(csn, existing));</span>
+<span class="fc" id="L199">                objectIds.add(existing.getId().toString());</span>
+            }
+<span class="fc" id="L201">        }</span>
+<span class="fc" id="L202">        return objectIds;</span>
+    }
+
+    @Override
+    public Collection&lt;CloudSubNetwork&gt; getSubNetworkDetailsByComponentId(String componentIdString) {
+<span class="nc" id="L207">        return getSubNetworkDetails(getCollectorItem(new ObjectId(componentIdString)));</span>
+    }
+
+    @Override
+    public Collection&lt;CloudSubNetwork&gt; getSubNetworkDetailsByAccount(String accountNumber) {
+<span class="fc" id="L212">        return cloudSubNetworkRepository.findByAccountNumber(accountNumber);</span>
+    }
+
+    @Override
+    public CloudSubNetwork getSubNetworkDetailsBySubnetId(String subnetId) {
+<span class="fc" id="L217">        return cloudSubNetworkRepository.findBySubnetId(subnetId);</span>
+    }
+
+    @Override
+    public Collection&lt;CloudSubNetwork&gt; getSubNetworkDetailsBySubnetIds(List&lt;String&gt; subnetIds) {
+<span class="fc" id="L222">        return cloudSubNetworkRepository.findBySubnetIdIn(subnetIds);</span>
+    }
+
+    @Override
+    public Collection&lt;CloudSubNetwork&gt; getSubNetworkDetailsByTags(List&lt;NameValue&gt; tags) {
+<span class="fc" id="L227">        Set&lt;CloudSubNetwork&gt; subnets = new HashSet&lt;&gt;();</span>
+<span class="fc bfc" id="L228" title="All 2 branches covered.">        for (NameValue nv : tags) {</span>
+<span class="fc" id="L229">            subnets.addAll(cloudSubNetworkRepository.findByTagNameAndValue(nv.getName(), nv.getValue()));</span>
+<span class="fc" id="L230">        }</span>
+<span class="fc" id="L231">        return subnets;</span>
+    }
+
+    @Override
+    public CloudSubNetworkAggregatedResponse getSubNetworkAggregatedData(String componentIdString) {
+<span class="nc" id="L236">        return new CloudSubNetworkAggregatedResponse();</span>
+    }
+
+    @Override
+    public CloudSubNetworkAggregatedResponse getSubNetworkAggregatedDataByTags(List&lt;NameValue&gt; tags) {
+<span class="nc" id="L241">        return new CloudSubNetworkAggregatedResponse();</span>
+    }
+
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

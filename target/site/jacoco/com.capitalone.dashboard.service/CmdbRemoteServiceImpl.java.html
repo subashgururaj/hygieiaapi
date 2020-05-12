@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CmdbRemoteServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.service</a> &gt; <span class="el_source">CmdbRemoteServiceImpl.java</span></div><h1>CmdbRemoteServiceImpl.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.service;
+
+import com.capitalone.dashboard.misc.HygieiaException;
+import com.capitalone.dashboard.model.Cmdb;
+import com.capitalone.dashboard.model.Collector;
+import com.capitalone.dashboard.model.CollectorType;
+import com.capitalone.dashboard.model.CollectorItem;
+import com.capitalone.dashboard.repository.CmdbRepository;
+import com.capitalone.dashboard.repository.CollectorRepository;
+import com.capitalone.dashboard.request.CmdbRequest;
+
+import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.ArrayList;
+import java.util.List;
+
+@Service
+public class CmdbRemoteServiceImpl implements CmdbRemoteService {
+
+    private static final String CONFIGURATION_ITEM = &quot;configurationItem&quot;;
+    private static final String COMMON_NAME = &quot;commonName&quot;;
+    private static final String COMPONENT_TYPE = &quot;component&quot;;
+    private static final String APP_TYPE = &quot;app&quot;;
+
+    private final CollectorService collectorService;
+    private final CmdbRepository cmdbRepository;
+    private final CollectorRepository collectorRepository;
+
+
+    @Autowired
+    public CmdbRemoteServiceImpl(
+           CollectorService collectorService,
+           CmdbRepository cmdbRepository,
+<span class="fc" id="L37">           CollectorRepository collectorRepository) {</span>
+
+<span class="fc" id="L39">        this.collectorService = collectorService;</span>
+<span class="fc" id="L40">        this.cmdbRepository = cmdbRepository;</span>
+<span class="fc" id="L41">        this.collectorRepository = collectorRepository;</span>
+<span class="fc" id="L42">    }</span>
+
+    @Override
+    public Cmdb remoteCreate(CmdbRequest request ) throws HygieiaException {
+
+<span class="fc" id="L47">        validateRequest(request);</span>
+
+<span class="fc" id="L49">        updateRelationship(request);</span>
+
+<span class="fc" id="L51">        Cmdb cmdb = requestToCmdb(request);</span>
+
+<span class="fc" id="L53">        List&lt;Collector&gt; collectors = collectorRepository.findByCollectorTypeAndName(CollectorType.CMDB, request.getToolName());</span>
+<span class="fc" id="L54">        cmdb.setCollectorItemId( buildCollectorItem( request, collectors.get(0) ).getId() );</span>
+
+<span class="fc" id="L56">        return cmdbRepository.save( cmdb );</span>
+    }
+
+    /**
+     * If ConfigurationItemBusServName is set then update it with the new relationship
+     * @param request
+     */
+    private void updateRelationship( CmdbRequest request ) {
+<span class="fc bfc" id="L64" title="All 2 branches covered.">        if( !StringUtils.isEmpty( request.getConfigurationItemBusServName() ) ) {</span>
+<span class="fc" id="L65">            Cmdb busServiceItem = cmdbRepository.findByConfigurationItemAndItemType(request.getConfigurationItemBusServName(), APP_TYPE);</span>
+
+<span class="fc bfc" id="L67" title="All 2 branches covered.">            if (busServiceItem.getComponents() == null){</span>
+<span class="fc" id="L68">                List&lt;String&gt; components =  new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L69">                components.add(request.getConfigurationItem());</span>
+
+<span class="fc" id="L71">                busServiceItem.setComponents(components);</span>
+<span class="fc" id="L72">            }else{</span>
+<span class="fc" id="L73">                busServiceItem.getComponents().add(request.getConfigurationItem());</span>
+            }
+
+<span class="fc" id="L76">            cmdbRepository.save( busServiceItem );</span>
+        }
+<span class="fc" id="L78">    }</span>
+
+    /**
+     * Validates CmdbRequest for errors
+     * @param request
+     * @throws HygieiaException
+     */
+    private void validateRequest(CmdbRequest request) throws HygieiaException {
+<span class="fc" id="L86">        String busServiceName = request.getConfigurationItemBusServName();</span>
+<span class="fc bfc" id="L87" title="All 4 branches covered.">        if(!StringUtils.isEmpty( busServiceName ) &amp;&amp; cmdbRepository.findByConfigurationItemAndItemType( busServiceName, APP_TYPE ) == null){</span>
+<span class="fc" id="L88">            throw new HygieiaException(&quot;Configuration Item &quot; + busServiceName + &quot; does not exist&quot;, HygieiaException.BAD_DATA);</span>
+        }
+
+<span class="fc" id="L91">        Cmdb cmdb = cmdbRepository.findByConfigurationItemIgnoreCaseOrCommonNameIgnoreCase(request.getConfigurationItem(), request.getCommonName());</span>
+<span class="pc bpc" id="L92" title="1 of 2 branches missed.">        if(cmdb != null){</span>
+<span class="nc" id="L93">            throw new HygieiaException(&quot;Configuration Item &quot; + cmdb.getConfigurationItem() + &quot; already exists&quot;, HygieiaException.DUPLICATE_DATA);</span>
+        }
+
+<span class="fc" id="L96">        List&lt;Collector&gt; collectors = collectorRepository.findByCollectorTypeAndName(CollectorType.CMDB, request.getToolName());</span>
+<span class="pc bpc" id="L97" title="1 of 2 branches missed.">        if (CollectionUtils.isEmpty(collectors)) {</span>
+<span class="nc" id="L98">            throw new HygieiaException(request.getToolName() + &quot; collector is not available.&quot;, HygieiaException.BAD_DATA);</span>
+        }
+<span class="fc" id="L100">    }</span>
+
+    /**
+     * Takes CmdbRequest and converts to Cmdb Object
+     * @param request
+     * @return Cmdb item
+     */
+    private Cmdb requestToCmdb( CmdbRequest request ){
+<span class="fc" id="L108">        Cmdb cmdb = new Cmdb();</span>
+<span class="fc" id="L109">        cmdb.setConfigurationItem( request.getConfigurationItem() );</span>
+<span class="fc" id="L110">        cmdb.setConfigurationItemSubType( request.getConfigurationItemSubType() );</span>
+<span class="fc" id="L111">        cmdb.setConfigurationItemType( request.getConfigurationItemType() );</span>
+<span class="fc" id="L112">        cmdb.setAssignmentGroup( request.getAssignmentGroup() );</span>
+<span class="fc" id="L113">        cmdb.setOwnerDept( request.getOwnerDept() );</span>
+<span class="fc" id="L114">        cmdb.setCommonName( request.getCommonName() );</span>
+<span class="fc" id="L115">        cmdb.setValidConfigItem( true );</span>
+<span class="fc" id="L116">        cmdb.setTimestamp( System.currentTimeMillis() );</span>
+<span class="fc" id="L117">        cmdb.setItemType( COMPONENT_TYPE );</span>
+<span class="fc" id="L118">        return cmdb;</span>
+    }
+
+    /**
+     * Builds collector Item for new Cmdb item
+     * @param request
+     * @param collector
+     * @return
+     */
+    private CollectorItem buildCollectorItem( CmdbRequest request, Collector collector ) {
+
+<span class="fc" id="L129">        CollectorItem collectorItem = new CollectorItem();</span>
+<span class="fc" id="L130">        collectorItem.setCollectorId( collector.getId() );</span>
+<span class="fc" id="L131">        collectorItem.setEnabled( false );</span>
+<span class="fc" id="L132">        collectorItem.setPushed( true );</span>
+<span class="fc" id="L133">        collectorItem.setDescription( request.getCommonName() );</span>
+<span class="fc" id="L134">        collectorItem.setLastUpdated( System.currentTimeMillis() );</span>
+<span class="fc" id="L135">        collectorItem.getOptions().put( CONFIGURATION_ITEM, request.getConfigurationItem() );</span>
+<span class="fc" id="L136">        collectorItem.getOptions().put( COMMON_NAME, request.getCommonName() );</span>
+<span class="fc" id="L137">        return  collectorService.createCollectorItem( collectorItem );</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PerformanceController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.rest</a> &gt; <span class="el_source">PerformanceController.java</span></div><h1>PerformanceController.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.rest;
+
+import com.capitalone.dashboard.editors.CaseInsensitiveCodeQualityTypeEditor;
+import com.capitalone.dashboard.misc.HygieiaException;
+import com.capitalone.dashboard.model.CodeQualityType;
+import com.capitalone.dashboard.model.DataResponse;
+import com.capitalone.dashboard.model.Performance;
+import com.capitalone.dashboard.model.PerformanceType;
+import com.capitalone.dashboard.request.PerformanceCreateRequest;
+import com.capitalone.dashboard.request.PerformanceSearchRequest;
+import com.capitalone.dashboard.service.PerformanceService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.WebDataBinder;
+import org.springframework.web.bind.annotation.InitBinder;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import javax.validation.Valid;
+
+import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
+import static org.springframework.web.bind.annotation.RequestMethod.GET;
+import static org.springframework.web.bind.annotation.RequestMethod.POST;
+
+@RestController
+public class PerformanceController {
+
+    private final PerformanceService performanceService;
+
+    @Autowired
+<span class="fc" id="L33">    public PerformanceController(PerformanceService performanceService) {</span>
+<span class="fc" id="L34">        this.performanceService = performanceService;</span>
+<span class="fc" id="L35">    }</span>
+
+    @InitBinder
+    public void initBinder(WebDataBinder binder) {
+<span class="nc" id="L39">        binder.registerCustomEditor(CodeQualityType.class, new CaseInsensitiveCodeQualityTypeEditor());</span>
+<span class="nc" id="L40">    }</span>
+
+    @RequestMapping(value = &quot;/performance&quot;, method = GET, produces = APPLICATION_JSON_VALUE)
+    public DataResponse&lt;Iterable&lt;Performance&gt;&gt; performanceData (@Valid PerformanceSearchRequest request) {
+<span class="nc" id="L44">        return performanceService.search(request);</span>
+    }
+
+    @RequestMapping(value = &quot;/performance/application&quot;, method = GET, produces = APPLICATION_JSON_VALUE)
+    public DataResponse&lt;Iterable&lt;Performance&gt;&gt; searchApplicationPerformance(@Valid PerformanceSearchRequest request) {
+<span class="nc" id="L49">        request.setType(PerformanceType.ApplicationPerformance);</span>
+<span class="nc" id="L50">        return performanceService.search(request);</span>
+    }
+
+    @RequestMapping(value = &quot;/performance/infrastructure&quot;, method = GET, produces = APPLICATION_JSON_VALUE)
+    public DataResponse&lt;Iterable&lt;Performance&gt;&gt; searchAInfrastructurePerformance(@Valid PerformanceSearchRequest request) {
+<span class="nc" id="L55">        request.setType(PerformanceType.InfrastructurePerformance);</span>
+<span class="nc" id="L56">        return performanceService.search(request);</span>
+    }
+
+    @RequestMapping(value = &quot;/performance/create&quot;, method = POST,
+            consumes = APPLICATION_JSON_VALUE, produces = APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;String&gt; createPerformance(@Valid @RequestBody PerformanceCreateRequest request) throws HygieiaException {
+<span class="nc" id="L62">        String response = performanceService.create(request);</span>
+<span class="nc" id="L63">        return ResponseEntity</span>
+<span class="nc" id="L64">                .status(HttpStatus.CREATED)</span>
+<span class="nc" id="L65">                .body(response);</span>
+    }
+
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

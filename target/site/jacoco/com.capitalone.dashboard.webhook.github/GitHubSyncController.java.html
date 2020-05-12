@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GitHubSyncController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.webhook.github</a> &gt; <span class="el_source">GitHubSyncController.java</span></div><h1>GitHubSyncController.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.webhook.github;
+
+import com.capitalone.dashboard.misc.HygieiaException;
+import com.capitalone.dashboard.request.GitSyncRequest;
+import org.json.simple.parser.ParseException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.net.MalformedURLException;
+
+import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
+import static org.springframework.web.bind.annotation.RequestMethod.POST;
+
+@RestController
+@RequestMapping(&quot;/sync&quot;)
+public class GitHubSyncController {
+    private final GitHubSyncService gitHubSyncService;
+
+    @Autowired
+<span class="nc" id="L24">    public GitHubSyncController(GitHubSyncService gitHubSyncService) {</span>
+<span class="nc" id="L25">        this.gitHubSyncService = gitHubSyncService;</span>
+<span class="nc" id="L26">    }</span>
+
+    @RequestMapping(value = &quot;/repo&quot;, method = POST,
+            consumes = APPLICATION_JSON_VALUE, produces = APPLICATION_JSON_VALUE)
+    public ResponseEntity&lt;String&gt; syncGithubRepo(@RequestBody GitSyncRequest request) throws ParseException, HygieiaException, MalformedURLException {
+<span class="nc" id="L31">        String response = gitHubSyncService.syncGithubRepo(request);</span>
+<span class="nc" id="L32">        return ResponseEntity</span>
+<span class="nc" id="L33">                .status(HttpStatus.CREATED)</span>
+<span class="nc" id="L34">                .body(response);</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

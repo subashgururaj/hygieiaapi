@@ -1,0 +1,959 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DashboardServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.service</a> &gt; <span class="el_source">DashboardServiceImpl.java</span></div><h1>DashboardServiceImpl.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.service;
+
+import com.capitalone.dashboard.auth.AuthenticationUtil;
+import com.capitalone.dashboard.auth.exceptions.UserNotFoundException;
+import com.capitalone.dashboard.misc.HygieiaException;
+import com.capitalone.dashboard.model.AuthType;
+import com.capitalone.dashboard.model.BaseModel;
+import com.capitalone.dashboard.model.Cmdb;
+import com.capitalone.dashboard.model.Collector;
+import com.capitalone.dashboard.model.CollectorItem;
+import com.capitalone.dashboard.model.CollectorType;
+import com.capitalone.dashboard.model.Component;
+import com.capitalone.dashboard.model.Dashboard;
+import com.capitalone.dashboard.model.DashboardType;
+import com.capitalone.dashboard.model.DataResponse;
+import com.capitalone.dashboard.model.Owner;
+import com.capitalone.dashboard.model.ScoreDisplayType;
+import com.capitalone.dashboard.model.Widget;
+import com.capitalone.dashboard.repository.CollectorItemRepository;
+import com.capitalone.dashboard.repository.CollectorRepository;
+import com.capitalone.dashboard.repository.ComponentRepository;
+import com.capitalone.dashboard.repository.CustomRepositoryQuery;
+import com.capitalone.dashboard.repository.DashboardRepository;
+import com.capitalone.dashboard.repository.PipelineRepository;
+import com.capitalone.dashboard.repository.ServiceRepository;
+import com.capitalone.dashboard.repository.UserInfoRepository;
+import com.capitalone.dashboard.settings.ApiSettings;
+import com.capitalone.dashboard.util.UnsafeDeleteException;
+import com.google.common.base.Predicate;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
+import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.stereotype.Service;
+
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Map;
+import java.util.ArrayList;
+import java.util.Set;
+import java.util.HashSet;
+import java.util.HashMap;
+import java.util.Objects;
+
+import java.util.stream.Collectors;
+
+@Service
+public class DashboardServiceImpl implements DashboardService {
+
+<span class="fc" id="L57">    private static final Log LOG = LogFactory.getLog(DashboardServiceImpl.class);</span>
+    private final DashboardRepository dashboardRepository;
+    private final ComponentRepository componentRepository;
+    private final CollectorRepository collectorRepository;
+    private final CollectorItemRepository collectorItemRepository;
+    private final CustomRepositoryQuery customRepositoryQuery;
+    @SuppressWarnings(&quot;unused&quot;)
+    private final PipelineRepository pipelineRepository; //NOPMD
+    private final ServiceRepository serviceRepository;
+    private final UserInfoRepository userInfoRepository;
+    private final UserInfoService userInfoService;
+    private final ScoreDashboardService scoreDashboardService;
+    private final CmdbService cmdbService;
+<span class="fc" id="L70">    private final String UNDEFINED = &quot;undefined&quot;;</span>
+<span class="fc" id="L71">    public final static EnumSet&lt;CollectorType&gt; QualityWidget = EnumSet.of(CollectorType.Test , CollectorType.StaticSecurityScan, CollectorType.CodeQuality, CollectorType.LibraryPolicy);</span>
+    public static final String BUILD = &quot;build&quot;;
+    public static final String FEATURE = &quot;feature&quot;;
+    public static final String DEPLOY = &quot;deploy&quot;;
+    public static final String REPO = &quot;repo&quot;;
+    public static final String PERFORMANCE = &quot;performanceanalysis&quot;;
+    public static final String CLOUD = &quot;cloud&quot;;
+    public static final String CHATOPS = &quot;chatops&quot;;
+    public static final String TEST = &quot;test&quot;;
+    public static final String CODEANALYSIS = &quot;codeanalysis&quot;;
+
+    @Autowired
+    private ApiSettings settings;
+
+    @Autowired
+    public DashboardServiceImpl(DashboardRepository dashboardRepository,
+                                ComponentRepository componentRepository,
+                                CollectorRepository collectorRepository,
+                                CollectorItemRepository collectorItemRepository,
+                                CustomRepositoryQuery customRepositoryQuery,
+                                ServiceRepository serviceRepository,
+                                PipelineRepository pipelineRepository,
+                                UserInfoRepository userInfoRepository,
+                                UserInfoService userInfoService,
+                                CmdbService cmdbService,
+                                ScoreDashboardService scoreDashboardService,
+<span class="fc" id="L97">                                ApiSettings settings) {</span>
+<span class="fc" id="L98">        this.dashboardRepository = dashboardRepository;</span>
+<span class="fc" id="L99">        this.componentRepository = componentRepository;</span>
+<span class="fc" id="L100">        this.collectorRepository = collectorRepository;</span>
+<span class="fc" id="L101">        this.collectorItemRepository = collectorItemRepository;</span>
+<span class="fc" id="L102">        this.customRepositoryQuery = customRepositoryQuery;</span>
+<span class="fc" id="L103">        this.serviceRepository = serviceRepository;</span>
+<span class="fc" id="L104">        this.pipelineRepository = pipelineRepository;   //TODO - Review if we need this param, seems it is never used according to PMD</span>
+<span class="fc" id="L105">        this.userInfoRepository = userInfoRepository;</span>
+<span class="fc" id="L106">        this.userInfoService = userInfoService;</span>
+<span class="fc" id="L107">        this.cmdbService = cmdbService;</span>
+<span class="fc" id="L108">        this.scoreDashboardService = scoreDashboardService;</span>
+<span class="fc" id="L109">        this.settings = settings;</span>
+<span class="fc" id="L110">    }</span>
+
+    @Override
+    public Iterable&lt;Dashboard&gt; all() {
+<span class="fc" id="L114">        Iterable&lt;Dashboard&gt; dashboards = dashboardRepository.findAll(new Sort(Sort.Direction.ASC, &quot;title&quot;));</span>
+<span class="pc bpc" id="L115" title="1 of 2 branches missed.">        for(Dashboard dashboard: dashboards){</span>
+<span class="nc" id="L116">            String appName = dashboard.getConfigurationItemBusServName();</span>
+<span class="nc" id="L117">            String compName = dashboard.getConfigurationItemBusAppName();</span>
+
+<span class="nc" id="L119">            setAppAndComponentNameToDashboard(dashboard, appName, compName);</span>
+<span class="nc" id="L120">        }</span>
+<span class="fc" id="L121">        return dashboards;</span>
+    }
+
+    @Override
+    public Iterable&lt;Dashboard&gt; allTemplate(String template){
+<span class="nc" id="L126">        Iterable&lt;Dashboard&gt; templateDashboards = dashboardRepository.findByTemplate(template);</span>
+<span class="nc bnc" id="L127" title="All 2 branches missed.">        for(Dashboard dashboard: templateDashboards) {</span>
+<span class="nc" id="L128">            String appName = dashboard.getConfigurationItemBusServName();</span>
+<span class="nc" id="L129">            String compName = dashboard.getConfigurationItemBusAppName();</span>
+
+<span class="nc" id="L131">            setAppAndComponentNameToDashboard(dashboard, appName, compName);</span>
+<span class="nc" id="L132">        }</span>
+<span class="nc" id="L133">        return templateDashboards;</span>
+    }
+
+
+    @Override
+    public Dashboard get(ObjectId id) {
+<span class="fc" id="L139">        Dashboard dashboard = dashboardRepository.findOne(id);</span>
+<span class="fc" id="L140">        String appName = dashboard.getConfigurationItemBusServName();</span>
+<span class="fc" id="L141">        String compName = dashboard.getConfigurationItemBusAppName();</span>
+
+<span class="fc" id="L143">        setAppAndComponentNameToDashboard(dashboard, appName, compName);</span>
+
+<span class="pc bpc" id="L145" title="1 of 2 branches missed.">        if (!dashboard.getApplication().getComponents().isEmpty()) {</span>
+            // Add transient Collector instance to each CollectorItem
+<span class="fc" id="L147">            Map&lt;CollectorType, List&lt;CollectorItem&gt;&gt; itemMap = dashboard.getApplication().getComponents().get(0).getCollectorItems();</span>
+
+<span class="fc" id="L149">            Iterable&lt;Collector&gt; collectors = collectorsFromItems(itemMap);</span>
+
+<span class="fc bfc" id="L151" title="All 2 branches covered.">            for (List&lt;CollectorItem&gt; collectorItems : itemMap.values()) {</span>
+<span class="fc bfc" id="L152" title="All 2 branches covered.">                for (CollectorItem collectorItem : collectorItems) {</span>
+<span class="fc" id="L153">                    collectorItem.setCollector(getCollector(collectorItem.getCollectorId(), collectors));</span>
+<span class="fc" id="L154">                }</span>
+<span class="fc" id="L155">            }</span>
+        }
+
+<span class="fc" id="L158">        return dashboard;</span>
+    }
+
+    /**
+     * Get all the dashboards that have the collector items
+     *
+     * @param collectorItems collector items
+     * @param collectorType  type of the collector
+     * @return a list of dashboards
+     */
+    @Override
+    public List&lt;Dashboard&gt; getDashboardsByCollectorItems(Set&lt;CollectorItem&gt; collectorItems, CollectorType collectorType) {
+<span class="nc bnc" id="L170" title="All 2 branches missed.">        if (org.apache.commons.collections4.CollectionUtils.isEmpty(collectorItems)) {</span>
+<span class="nc" id="L171">            return new ArrayList&lt;&gt;();</span>
+        }
+<span class="nc" id="L173">        List&lt;ObjectId&gt; collectorItemIds = collectorItems.stream().map(BaseModel::getId).collect(Collectors.toList());</span>
+        // Find the components that have these collector items
+<span class="nc" id="L175">        List&lt;com.capitalone.dashboard.model.Component&gt; components = componentRepository.findByCollectorTypeAndItemIdIn(collectorType, collectorItemIds);</span>
+<span class="nc" id="L176">        List&lt;ObjectId&gt; componentIds = components.stream().map(BaseModel::getId).collect(Collectors.toList());</span>
+<span class="nc" id="L177">        return dashboardRepository.findByApplicationComponentIdsIn(componentIds);</span>
+    }
+
+    private Dashboard create(Dashboard dashboard, boolean isUpdate) throws HygieiaException {
+<span class="fc" id="L181">        Iterable&lt;Component&gt; components = null;</span>
+
+<span class="fc bfc" id="L183" title="All 2 branches covered.">        if(!isUpdate) {</span>
+<span class="fc" id="L184">            components = componentRepository.save(dashboard.getApplication().getComponents());</span>
+        } else {
+<span class="fc" id="L186">            dashboard.setUpdatedAt(System.currentTimeMillis());</span>
+        }
+
+        try {
+<span class="fc" id="L190">            duplicateDashboardErrorCheck(dashboard);</span>
+<span class="fc" id="L191">            Dashboard savedDashboard = dashboardRepository.save(dashboard);</span>
+            CollectorItem scoreCollectorItem;
+<span class="fc bfc" id="L193" title="All 2 branches covered.">            if (isUpdate) {</span>
+<span class="fc" id="L194">                scoreCollectorItem = this.scoreDashboardService.editScoreForDashboard(savedDashboard);</span>
+            } else {
+<span class="fc" id="L196">                scoreCollectorItem = this.scoreDashboardService.addScoreForDashboardIfScoreEnabled(savedDashboard);</span>
+            }
+<span class="fc" id="L198">            return savedDashboard;</span>
+<span class="fc" id="L199">        }  catch (Exception e) {</span>
+            //Exclude deleting of components if this is an update request
+<span class="pc bpc" id="L201" title="1 of 2 branches missed.">            if(!isUpdate) {</span>
+<span class="fc" id="L202">                componentRepository.delete(components);</span>
+            }
+
+<span class="pc bpc" id="L205" title="1 of 2 branches missed.">            if(e instanceof HygieiaException){</span>
+<span class="nc" id="L206">                throw e;</span>
+            }else{
+<span class="fc" id="L208">                throw new HygieiaException(&quot;Failed creating dashboard.&quot;, HygieiaException.ERROR_INSERTING_DATA);</span>
+            }
+        }
+    }
+
+    @Override
+    public Dashboard create(Dashboard dashboard) throws HygieiaException {
+<span class="fc" id="L215">        return create(dashboard, false);</span>
+    }
+    @Override
+    public Dashboard update(Dashboard dashboard) throws HygieiaException {
+<span class="fc" id="L219">        return create(dashboard, true);</span>
+    }
+
+    @Override
+    public void delete(ObjectId id) {
+<span class="fc" id="L224">        Dashboard dashboard = dashboardRepository.findOne(id);</span>
+
+<span class="pc bpc" id="L226" title="1 of 2 branches missed.">        if (!isSafeDelete(dashboard)) {</span>
+<span class="nc" id="L227">            throw new UnsafeDeleteException(&quot;Cannot delete team dashboard &quot; + dashboard.getTitle() + &quot; as it is referenced by program dashboards.&quot;);</span>
+        }
+
+
+        // Remove this Dashboard's services and service dependencies
+<span class="fc" id="L232">        serviceRepository.delete(serviceRepository.findByDashboardId(id));</span>
+<span class="fc bfc" id="L233" title="All 2 branches covered.">        for (com.capitalone.dashboard.model.Service service : serviceRepository.findByDependedBy(id)) { //NOPMD - using fully qualified or we pickup an incorrect spring class</span>
+<span class="fc" id="L234">            service.getDependedBy().remove(id);</span>
+<span class="fc" id="L235">            serviceRepository.save(service);</span>
+<span class="fc" id="L236">        }</span>
+
+        /**
+         * Delete Dashboard. Then delete component. Then disable collector items if needed
+         */
+<span class="fc" id="L241">        dashboardRepository.delete(dashboard);</span>
+<span class="fc" id="L242">        componentRepository.delete(dashboard.getApplication().getComponents());</span>
+<span class="fc" id="L243">        handleCollectorItems(dashboard.getApplication().getComponents());</span>
+<span class="pc bpc" id="L244" title="1 of 2 branches missed.">        if (dashboard.isScoreEnabled()) {</span>
+<span class="nc" id="L245">            this.scoreDashboardService.disableScoreForDashboard(dashboard);</span>
+        }
+
+<span class="fc" id="L248">    }</span>
+
+    /**
+     * For the dashboard, get all the components and get all the collector items for the components.
+     * If a collector item is NOT associated with any Component, disable it.
+     * @param components
+     */
+    private void handleCollectorItems(List&lt;Component&gt; components) {
+<span class="fc bfc" id="L256" title="All 2 branches covered.">        for (Component component : components) {</span>
+<span class="fc" id="L257">            Map&lt;CollectorType, List&lt;CollectorItem&gt;&gt; itemMap = component.getCollectorItems();</span>
+<span class="fc bfc" id="L258" title="All 2 branches covered.">            for (CollectorType type : itemMap.keySet()) {</span>
+<span class="fc" id="L259">                List&lt;CollectorItem&gt; items = itemMap.get(type);</span>
+<span class="fc bfc" id="L260" title="All 2 branches covered.">                for (CollectorItem i : items) {</span>
+<span class="fc bfc" id="L261" title="All 2 branches covered.">                    if (CollectionUtils.isEmpty(customRepositoryQuery.findComponents(i.getCollectorId(),type,i))) {</span>
+<span class="fc" id="L262">                        i.setEnabled(false);</span>
+<span class="fc" id="L263">                        i.setLastUpdated(System.currentTimeMillis());</span>
+<span class="fc" id="L264">                        collectorItemRepository.save(i);</span>
+                    }
+<span class="fc" id="L266">                }</span>
+<span class="fc" id="L267">            }</span>
+<span class="fc" id="L268">        }</span>
+<span class="fc" id="L269">    }</span>
+
+    private boolean isSafeDelete(Dashboard dashboard) {
+<span class="pc bpc" id="L272" title="3 of 6 branches missed.">        return !(dashboard.getType() == null || dashboard.getType().equals(DashboardType.Team)) || isSafeTeamDashboardDelete(dashboard);</span>
+    }
+
+    private boolean isSafeTeamDashboardDelete(Dashboard dashboard) {
+<span class="fc" id="L276">        boolean isSafe = false;</span>
+<span class="fc" id="L277">        List&lt;Collector&gt; productCollectors = collectorRepository.findByCollectorType(CollectorType.Product);</span>
+<span class="pc bpc" id="L278" title="1 of 2 branches missed.">        if (productCollectors.isEmpty()) {</span>
+<span class="fc" id="L279">            return true;</span>
+        }
+
+<span class="nc" id="L282">        Collector productCollector = productCollectors.get(0);</span>
+
+<span class="nc" id="L284">        CollectorItem teamDashboardCollectorItem = collectorItemRepository.findTeamDashboardCollectorItemsByCollectorIdAndDashboardId(productCollector.getId(), dashboard.getId().toString());</span>
+
+        //// TODO: 1/21/16 Is this safe? What if we add a new team dashbaord and quickly add it to a product and then delete it?
+<span class="nc bnc" id="L287" title="All 2 branches missed.">        if (teamDashboardCollectorItem == null) {</span>
+<span class="nc" id="L288">            return true;</span>
+        }
+
+<span class="nc bnc" id="L291" title="All 2 branches missed.">        if (dashboardRepository.findProductDashboardsByTeamDashboardCollectorItemId(teamDashboardCollectorItem.getId().toString()).isEmpty()) {</span>
+<span class="nc" id="L292">            isSafe = true;</span>
+        }
+<span class="nc" id="L294">        return isSafe;</span>
+    }
+
+    @Override
+    public Component associateCollectorToComponent(ObjectId componentId, List&lt;ObjectId&gt; collectorItemIds, boolean cleanupQuality) {
+<span class="pc bpc" id="L299" title="2 of 4 branches missed.">        if (componentId == null || collectorItemIds == null) {</span>
+            // Not all widgets gather data from collectors
+<span class="nc" id="L301">            return null;</span>
+        }
+<span class="fc" id="L303">        com.capitalone.dashboard.model.Component component = componentRepository.findOne(componentId); //NOPMD - using fully qualified name for clarity</span>
+<span class="fc" id="L304">        associateCollectorItemsToComponent(collectorItemIds, true, component, cleanupQuality);</span>
+<span class="fc" id="L305">        return component;</span>
+    }
+
+    @Override
+    public Component associateCollectorToComponent(ObjectId componentId, List&lt;ObjectId&gt; collectorItemIds,Component component, boolean cleanupQuality) {
+<span class="pc bpc" id="L310" title="2 of 4 branches missed.">        if (componentId == null || collectorItemIds == null) {</span>
+            // Not all widgets gather data from collectors
+<span class="nc" id="L312">            return null;</span>
+        }
+<span class="fc" id="L314">        associateCollectorItemsToComponent(collectorItemIds, false, component, cleanupQuality);</span>
+<span class="fc" id="L315">        return component;</span>
+    }
+
+    private void associateCollectorItemsToComponent(List&lt;ObjectId&gt; collectorItemIds, boolean save, Component component, boolean cleanupQuality) {
+<span class="fc" id="L319">        final String METHOD_NAME = &quot;DashboardServiceImpl.associateCollectorToComponent :&quot;;</span>
+        //First: disable all collectorItems of the Collector TYPEs that came in with the request.
+        //Second: remove all the collectorItem association of the Collector Type  that came in
+<span class="fc" id="L322">        HashSet&lt;CollectorType&gt; incomingTypes = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L323">        HashMap&lt;ObjectId, CollectorItem&gt; toSaveCollectorItems = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L324">        HashMap&lt;ObjectId, CollectorItem&gt; incomingCollectorItems = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L325">        ObjectId currentCollectorId = null;</span>
+<span class="fc" id="L326">        Collector collector = null;</span>
+<span class="fc bfc" id="L327" title="All 2 branches covered.">        for (ObjectId collectorItemId : collectorItemIds) {</span>
+<span class="fc" id="L328">            CollectorItem collectorItem = collectorItemRepository.findOne(collectorItemId);</span>
+<span class="fc" id="L329">            incomingCollectorItems.put(collectorItemId, collectorItem);</span>
+<span class="pc bpc" id="L330" title="1 of 2 branches missed.">            if(collectorItem == null) {</span>
+<span class="nc" id="L331">                LOG.warn(METHOD_NAME + &quot; Bad CollectorItemId passed in the request : &quot; + collectorItemId);</span>
+<span class="nc" id="L332">                continue;</span>
+            }
+<span class="fc bfc" id="L334" title="All 4 branches covered.">            if(collector == null || currentCollectorId != collectorItem.getCollectorId()) {</span>
+<span class="fc" id="L335">                collector = collectorRepository.findOne(collectorItem.getCollectorId());</span>
+<span class="fc" id="L336">                currentCollectorId = collector.getId();</span>
+            }
+<span class="fc bfc" id="L338" title="All 2 branches covered.">            if (!incomingTypes.contains(collector.getCollectorType())) {</span>
+<span class="fc" id="L339">                incomingTypes.add(collector.getCollectorType());</span>
+<span class="fc" id="L340">                List&lt;CollectorItem&gt; cItems = component.getCollectorItems(collector.getCollectorType());</span>
+                // Save all collector items as disabled for now
+<span class="fc bfc" id="L342" title="All 2 branches covered.">                if (!CollectionUtils.isEmpty(cItems)) {</span>
+<span class="fc bfc" id="L343" title="All 2 branches covered.">                    for (CollectorItem ci : cItems) {</span>
+                        //if item is orphaned, disable it. Otherwise keep it enabled.
+<span class="fc bfc" id="L345" title="All 2 branches covered.">                        ci.setEnabled(!isLonely(ci, collector, component));</span>
+<span class="fc" id="L346">                        toSaveCollectorItems.put(ci.getId(), ci);</span>
+<span class="fc" id="L347">                    }</span>
+                }
+                // remove all collector items of a type
+<span class="fc" id="L350">                component.getCollectorItems().remove(collector.getCollectorType());</span>
+            }
+<span class="fc" id="L352">        }</span>
+
+        // If a collector type is within the code analysis widget, check to see if any of the remaining fields were passed values
+<span class="fc bfc" id="L355" title="All 4 branches covered.">        if(incomingTypes.stream().anyMatch(QualityWidget::contains) &amp;&amp; cleanupQuality){</span>
+<span class="pc bpc" id="L356" title="1 of 2 branches missed.">            if(!incomingTypes.contains(CollectorType.Test)){</span>
+<span class="fc" id="L357">                component.getCollectorItems().remove(CollectorType.Test);</span>
+            }
+<span class="pc bpc" id="L359" title="1 of 2 branches missed.">            if(!incomingTypes.contains(CollectorType.StaticSecurityScan)){</span>
+<span class="fc" id="L360">                component.getCollectorItems().remove(CollectorType.StaticSecurityScan);</span>
+            }
+<span class="fc bfc" id="L362" title="All 2 branches covered.">            if(!incomingTypes.contains(CollectorType.CodeQuality)){</span>
+<span class="fc" id="L363">                component.getCollectorItems().remove(CollectorType.CodeQuality);</span>
+            }
+<span class="pc bpc" id="L365" title="1 of 2 branches missed.">            if(!incomingTypes.contains(CollectorType.LibraryPolicy)){</span>
+<span class="nc" id="L366">                component.getCollectorItems().remove(CollectorType.LibraryPolicy);</span>
+            }
+        }
+
+<span class="fc" id="L370">        currentCollectorId = null;</span>
+<span class="fc" id="L371">        collector = null;</span>
+        //Last step: add collector items that came in
+<span class="fc bfc" id="L373" title="All 2 branches covered.">        for (ObjectId collectorItemId : collectorItemIds) {</span>
+<span class="fc" id="L374">            CollectorItem collectorItem = incomingCollectorItems.get(collectorItemId);</span>
+<span class="pc bpc" id="L375" title="1 of 2 branches missed.">            if(collectorItem == null) {</span>
+<span class="nc" id="L376">                LOG.warn(METHOD_NAME + &quot; Bad CollectorItemId passed in the incoming request : &quot; + collectorItemId);</span>
+<span class="nc" id="L377">                continue;</span>
+            }
+            //the new collector items must be set to true
+<span class="fc" id="L380">            collectorItem.setEnabled(true);</span>
+<span class="fc" id="L381">            CollectorItem existingCollectorItem = toSaveCollectorItems.get(collectorItem.getId());</span>
+<span class="pc bpc" id="L382" title="1 of 2 branches missed.">            if ( (existingCollectorItem == null)</span>
+<span class="nc bnc" id="L383" title="All 2 branches missed.">                    || compareMaps(collectorItem.getOptions(), existingCollectorItem.getOptions()) ) {</span>
+<span class="fc" id="L384">                collectorItem.setLastUpdated(System.currentTimeMillis());</span>
+            }
+<span class="fc bfc" id="L386" title="All 4 branches covered.">            if(collector == null || currentCollectorId != collectorItem.getCollectorId()) {</span>
+<span class="fc" id="L387">                collector = collectorRepository.findOne(collectorItem.getCollectorId());</span>
+<span class="fc" id="L388">                currentCollectorId = collector.getId();</span>
+            }
+<span class="fc" id="L390">            component.addCollectorItem(collector.getCollectorType(), collectorItem);</span>
+<span class="fc" id="L391">            toSaveCollectorItems.put(collectorItemId, collectorItem);</span>
+            // set transient collector property
+<span class="fc" id="L393">            collectorItem.setCollector(collector);</span>
+<span class="fc" id="L394">        }</span>
+
+<span class="fc" id="L396">        collectorItemRepository.save(new HashSet&lt;&gt;(toSaveCollectorItems.values()));</span>
+<span class="fc bfc" id="L397" title="All 2 branches covered.">        if(save){</span>
+<span class="fc" id="L398">            componentRepository.save(component);</span>
+        }
+<span class="fc" id="L400">    }</span>
+
+    /*
+        Return true if two maps are different
+     */
+    protected boolean compareMaps (Map&lt;String, Object&gt; map1, Map&lt;String, Object&gt; map2) {
+<span class="pc bpc" id="L406" title="2 of 4 branches missed.">        if (map1 == null || map2 == null)</span>
+<span class="nc" id="L407">            return true;</span>
+
+<span class="pc bpc" id="L409" title="1 of 2 branches missed.">        if (!map1.keySet().equals(map2.keySet()))</span>
+<span class="nc" id="L410">            return true;</span>
+
+<span class="fc" id="L412">        return map1.entrySet().stream().filter(value1 -&gt;</span>
+<span class="fc bfc" id="L413" title="All 2 branches covered.">                !Objects.equals(value1.getValue(), map2.get(value1.getKey()))).findAny().isPresent();</span>
+    }
+
+    private boolean isLonely(CollectorItem item, Collector collector, Component component) {
+<span class="fc" id="L417">        List&lt;Component&gt; components = customRepositoryQuery.findComponents(collector, item);</span>
+        //if item is not attached to any component, it is orphaned.
+<span class="fc bfc" id="L419" title="All 2 branches covered.">        if (CollectionUtils.isEmpty(components)) return true;</span>
+        //if item is attached to more than 1 component, it is NOT orphaned
+<span class="pc bpc" id="L421" title="1 of 2 branches missed.">        if (components.size() &gt; 1) return false;</span>
+        //if item is attached to ONLY 1 component it is the current one, it is going to be orphaned after this
+<span class="nc" id="L423">        return (components.get(0).getId().equals(component.getId()));</span>
+    }
+
+    @Override
+    public Widget addWidget(Dashboard dashboard, Widget widget) {
+<span class="fc" id="L428">        widget.setId(ObjectId.get());</span>
+<span class="fc" id="L429">        dashboard.getWidgets().add(widget);</span>
+<span class="fc" id="L430">        dashboardRepository.save(dashboard);</span>
+<span class="fc" id="L431">        return widget;</span>
+    }
+
+    @Override
+    public Widget getWidget(Dashboard dashboard, ObjectId widgetId) {
+<span class="fc" id="L436">        return Iterables.find(dashboard.getWidgets(), new WidgetByIdPredicate(widgetId));</span>
+    }
+
+    @Override
+    public Widget updateWidget(Dashboard dashboard, Widget widget) {
+<span class="fc" id="L441">        int index = dashboard.getWidgets().indexOf(widget);</span>
+<span class="fc" id="L442">        dashboard.getWidgets().set(index, widget);</span>
+        // update dashboard updateAt timestamp
+<span class="fc" id="L444">        dashboard.setUpdatedAt(System.currentTimeMillis());</span>
+<span class="fc" id="L445">        dashboardRepository.save(dashboard);</span>
+<span class="fc" id="L446">        return widget;</span>
+    }
+
+    private static final class WidgetByIdPredicate implements Predicate&lt;Widget&gt; {
+        private final ObjectId widgetId;
+
+<span class="fc" id="L452">        public WidgetByIdPredicate(ObjectId widgetId) {</span>
+<span class="fc" id="L453">            this.widgetId = widgetId;</span>
+<span class="fc" id="L454">        }</span>
+
+        @Override
+        public boolean apply(Widget widget) {
+<span class="fc" id="L458">            return widget.getId().equals(widgetId);</span>
+        }
+    }
+
+    private Iterable&lt;Collector&gt; collectorsFromItems(Map&lt;CollectorType, List&lt;CollectorItem&gt;&gt; itemMap) {
+<span class="fc" id="L463">        Set&lt;ObjectId&gt; collectorIds = new HashSet&lt;&gt;();</span>
+<span class="fc bfc" id="L464" title="All 2 branches covered.">        for (List&lt;CollectorItem&gt; collectorItems : itemMap.values()) {</span>
+<span class="fc bfc" id="L465" title="All 2 branches covered.">            for (CollectorItem collectorItem : collectorItems) {</span>
+<span class="fc" id="L466">                collectorIds.add(collectorItem.getCollectorId());</span>
+<span class="fc" id="L467">            }</span>
+<span class="fc" id="L468">        }</span>
+
+<span class="fc" id="L470">        return collectorRepository.findAll(collectorIds);</span>
+    }
+
+    private Collector getCollector(final ObjectId collectorId, Iterable&lt;Collector&gt; collectors) {
+<span class="fc" id="L474">        return Iterables.tryFind(collectors, new Predicate&lt;Collector&gt;() {</span>
+            @Override
+            public boolean apply(Collector collector) {
+<span class="fc" id="L477">                return collector.getId().equals(collectorId);</span>
+            }
+<span class="fc" id="L479">        }).orNull();</span>
+    }
+
+    @Override
+    public List&lt;Dashboard&gt; getOwnedDashboards() {
+<span class="nc" id="L484">        Owner owner = new Owner(AuthenticationUtil.getUsernameFromContext(), AuthenticationUtil.getAuthTypeFromContext());</span>
+<span class="nc" id="L485">        List&lt;Dashboard&gt; findByOwnersList = dashboardRepository.findByOwners(owner);</span>
+<span class="nc" id="L486">        getAppAndComponentNames(findByOwnersList);</span>
+<span class="nc" id="L487">        return findByOwnersList.stream().distinct().collect(Collectors.toList());</span>
+    }
+
+    @Override
+    public List&lt;ObjectId&gt; getOwnedDashboardsObjectIds() {
+<span class="nc" id="L492">        List&lt;ObjectId&gt; dashboardIdList = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L493">        List&lt;Dashboard&gt; ownedDashboards =  getOwnedDashboards();</span>
+
+<span class="nc bnc" id="L495" title="All 2 branches missed.">        for(Dashboard dashboard: ownedDashboards){</span>
+<span class="nc" id="L496">            dashboardIdList.add(dashboard.getId());</span>
+<span class="nc" id="L497">        }</span>
+
+<span class="nc" id="L499">        return dashboardIdList;</span>
+    }
+    @Override
+    public Iterable&lt;Owner&gt; getOwners(ObjectId id) {
+<span class="nc" id="L503">        Dashboard dashboard = get(id);</span>
+<span class="nc" id="L504">        return dashboard.getOwners();</span>
+    }
+
+    @Override
+    public Iterable&lt;Owner&gt; updateOwners(ObjectId dashboardId, Iterable&lt;Owner&gt; owners) {
+<span class="fc bfc" id="L509" title="All 2 branches covered.">        for(Owner owner : owners) {</span>
+<span class="fc" id="L510">            String username = owner.getUsername();</span>
+<span class="fc" id="L511">            AuthType authType = owner.getAuthType();</span>
+<span class="fc bfc" id="L512" title="All 2 branches covered.">            if (!userInfoService.isUserValid(username, authType)) {</span>
+<span class="fc" id="L513">                throw new UserNotFoundException(username, authType);</span>
+            }
+<span class="fc" id="L515">        }</span>
+
+<span class="fc" id="L517">        Dashboard dashboard = dashboardRepository.findOne(dashboardId);</span>
+<span class="fc" id="L518">        dashboard.setOwners(Lists.newArrayList(owners));</span>
+<span class="fc" id="L519">        Dashboard result = dashboardRepository.save(dashboard);</span>
+
+<span class="fc" id="L521">        return result.getOwners();</span>
+    }
+
+    @Override
+    public String getDashboardOwner(String dashboardTitle) {
+<span class="nc" id="L526">        String dashboardOwner=dashboardRepository.findByTitle(dashboardTitle).get(0).getOwner();</span>
+
+<span class="nc" id="L528">        return dashboardOwner;</span>
+    }
+
+    @SuppressWarnings(&quot;unused&quot;)
+    private DashboardType getDashboardType(Dashboard dashboard) {
+<span class="nc bnc" id="L533" title="All 2 branches missed.">        if (dashboard.getType() != null) {</span>
+<span class="nc" id="L534">            return dashboard.getType();</span>
+        }
+<span class="nc" id="L536">        return DashboardType.Team;</span>
+    }
+
+    @Override
+    public Component getComponent(ObjectId componentId){
+
+<span class="nc" id="L542">        Component component = componentRepository.findOne(componentId);</span>
+<span class="nc" id="L543">        return component;</span>
+    }
+    @Override
+    public Dashboard updateDashboardBusinessItems(ObjectId dashboardId, Dashboard request) throws HygieiaException {
+<span class="fc" id="L547">        Dashboard dashboard = get(dashboardId);</span>
+<span class="fc" id="L548">        String updatedBusServiceName = request.getConfigurationItemBusServName();</span>
+<span class="fc" id="L549">        String updatedBusApplicationName = request.getConfigurationItemBusAppName();</span>
+
+<span class="pc bpc" id="L551" title="1 of 2 branches missed.">        if(StringUtils.isEmpty(updatedBusServiceName)){</span>
+
+<span class="nc" id="L553">            dashboard.setConfigurationItemBusServName(null);</span>
+        }else{
+<span class="fc" id="L555">            Cmdb cmdb = cmdbService.configurationItemByConfigurationItem(updatedBusServiceName);</span>
+<span class="pc bpc" id="L556" title="1 of 2 branches missed.">            if(cmdb != null){</span>
+
+<span class="fc" id="L558">                dashboard.setConfigurationItemBusServName(cmdb.getConfigurationItem());</span>
+            }
+        }
+<span class="pc bpc" id="L561" title="1 of 2 branches missed.">        if(StringUtils.isEmpty(updatedBusApplicationName)){</span>
+
+<span class="nc" id="L563">            dashboard.setConfigurationItemBusAppName(null);</span>
+        }else{
+<span class="fc" id="L565">            Cmdb cmdb = cmdbService.configurationItemByConfigurationItem(updatedBusApplicationName);</span>
+<span class="pc bpc" id="L566" title="1 of 2 branches missed.">            if(cmdb != null){</span>
+
+<span class="fc" id="L568">                dashboard.setConfigurationItemBusAppName(cmdb.getConfigurationItem());</span>
+            }
+        }
+
+<span class="fc" id="L572">        return update(dashboard);</span>
+    }
+    @Override
+    public DataResponse&lt;Iterable&lt;Dashboard&gt;&gt; getByBusinessService(String app) {
+<span class="nc" id="L576">        Cmdb cmdb =  cmdbService.configurationItemByConfigurationItem(app);</span>
+<span class="nc" id="L577">        Iterable&lt;Dashboard&gt; rt = null;</span>
+
+<span class="nc bnc" id="L579" title="All 2 branches missed.">        if(cmdb != null){</span>
+<span class="nc" id="L580">            rt = dashboardRepository.findAllByConfigurationItemBusServName(cmdb.getConfigurationItem());</span>
+        }
+<span class="nc" id="L582">        return new DataResponse&lt;&gt;(rt, System.currentTimeMillis());</span>
+    }
+    @Override
+    public DataResponse&lt;Iterable&lt;Dashboard&gt;&gt; getByBusinessApplication(String component) {
+<span class="nc" id="L586">        Cmdb cmdb =  cmdbService.configurationItemByConfigurationItem(component);</span>
+<span class="nc" id="L587">        Iterable&lt;Dashboard&gt; rt = null;</span>
+
+<span class="nc bnc" id="L589" title="All 2 branches missed.">        if(cmdb != null){</span>
+<span class="nc" id="L590">            rt = dashboardRepository.findAllByConfigurationItemBusAppName(cmdb.getConfigurationItem());</span>
+        }
+<span class="nc" id="L592">        return new DataResponse&lt;&gt;(rt, System.currentTimeMillis());</span>
+    }
+    @Override
+    public DataResponse&lt;Iterable&lt;Dashboard&gt;&gt; getByServiceAndApplication(String component, String app) {
+<span class="nc" id="L596">        Cmdb cmdbCompItem =  cmdbService.configurationItemByConfigurationItem(component);</span>
+<span class="nc" id="L597">        Cmdb cmdbAppItem =  cmdbService.configurationItemByConfigurationItem(app);</span>
+<span class="nc" id="L598">        Iterable&lt;Dashboard&gt; rt = null;</span>
+
+<span class="nc bnc" id="L600" title="All 4 branches missed.">        if(cmdbAppItem != null &amp;&amp; cmdbCompItem != null){</span>
+<span class="nc" id="L601">            rt = dashboardRepository.findAllByConfigurationItemBusServNameAndConfigurationItemBusAppName(cmdbAppItem.getConfigurationItem(),cmdbCompItem.getConfigurationItem());</span>
+        }
+<span class="nc" id="L603">        return new DataResponse&lt;&gt;(rt, System.currentTimeMillis());</span>
+    }
+    @Override
+    public  List&lt;Dashboard&gt; getByTitle(String title) {
+<span class="fc" id="L607">        List&lt;Dashboard&gt; dashboard = dashboardRepository.findByTitle(title);</span>
+
+<span class="fc" id="L609">        return dashboard;</span>
+    }
+
+    @Override
+    public Dashboard updateDashboardWidgets(ObjectId dashboardId, Dashboard request) throws HygieiaException {
+<span class="fc" id="L614">        Dashboard dashboard = get(dashboardId);</span>
+<span class="fc" id="L615">        List&lt;String&gt; existingActiveWidgets = dashboard.getActiveWidgets();</span>
+<span class="fc" id="L616">        List&lt;Component&gt; components = dashboard.getApplication().getComponents();</span>
+<span class="fc" id="L617">        List&lt;String&gt; widgetToDelete =  findUpdateCollectorItems(existingActiveWidgets,request.getActiveWidgets());</span>
+<span class="fc" id="L618">        List&lt;Widget&gt; widgets = dashboard.getWidgets();</span>
+<span class="pc bpc" id="L619" title="1 of 2 branches missed.">        ObjectId componentId = components.get(0)!=null?components.get(0).getId():null;</span>
+<span class="fc" id="L620">        List&lt;Integer&gt; indexList = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L621">        List&lt;CollectorType&gt; collectorTypesToDelete = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L622">        List&lt;Widget&gt; updatedWidgets = new ArrayList&lt;&gt;();</span>
+
+<span class="pc bpc" id="L624" title="1 of 2 branches missed.">        for (String widgetName: widgetToDelete) {</span>
+<span class="nc bnc" id="L625" title="All 2 branches missed.">            for (Widget widget:widgets) {</span>
+<span class="nc bnc" id="L626" title="All 2 branches missed.">                if(widgetName.equalsIgnoreCase(widget.getName())){</span>
+<span class="nc" id="L627">                    int widgetIndex = widgets.indexOf(widget);</span>
+<span class="nc" id="L628">                    indexList.add(widgetIndex);</span>
+<span class="nc" id="L629">                    collectorTypesToDelete.add(findCollectorType(widgetName));</span>
+<span class="nc bnc" id="L630" title="All 2 branches missed.">                    if(widgetName.equalsIgnoreCase(&quot;codeanalysis&quot;)){</span>
+<span class="nc" id="L631">                        collectorTypesToDelete.add(CollectorType.CodeQuality);</span>
+<span class="nc" id="L632">                        collectorTypesToDelete.add(CollectorType.StaticSecurityScan);</span>
+<span class="nc" id="L633">                        collectorTypesToDelete.add(CollectorType.LibraryPolicy);</span>
+<span class="nc" id="L634">                        collectorTypesToDelete.add(CollectorType.Test);</span>
+                    }
+                }
+<span class="nc" id="L637">            }</span>
+<span class="nc" id="L638">        }</span>
+        //iterate through index and remove widgets
+<span class="pc bpc" id="L640" title="1 of 2 branches missed.">        for (Integer i:indexList) {</span>
+<span class="nc" id="L641">            widgets.set(i,null);</span>
+<span class="nc" id="L642">        }</span>
+<span class="pc bpc" id="L643" title="1 of 2 branches missed.">        for (Widget w:widgets) {</span>
+<span class="nc bnc" id="L644" title="All 2 branches missed.">            if(w!=null)</span>
+<span class="nc" id="L645">                updatedWidgets.add(w);</span>
+<span class="nc" id="L646">        }</span>
+<span class="fc" id="L647">        dashboard.setWidgets(updatedWidgets);</span>
+<span class="fc" id="L648">        dashboard.setActiveWidgets(request.getActiveWidgets());</span>
+<span class="fc" id="L649">        dashboard = update(dashboard);</span>
+<span class="pc bpc" id="L650" title="1 of 2 branches missed.">        if(componentId!=null){</span>
+<span class="nc" id="L651">            com.capitalone.dashboard.model.Component component = componentRepository.findOne(componentId);</span>
+<span class="nc bnc" id="L652" title="All 2 branches missed.">            for (CollectorType cType :collectorTypesToDelete) {</span>
+<span class="nc" id="L653">                component.getCollectorItems().remove(cType);</span>
+<span class="nc" id="L654">            }</span>
+<span class="nc" id="L655">            componentRepository.save(component);</span>
+        }
+<span class="fc" id="L657">        return dashboard;</span>
+    }
+
+
+    @Override
+    public void deleteWidget(Dashboard dashboard, Widget widget,ObjectId componentId) {
+<span class="fc" id="L663">        int index = dashboard.getWidgets().indexOf(widget);</span>
+<span class="fc" id="L664">        dashboardUpdate(dashboard, index);</span>
+<span class="fc" id="L665">        String widgetName = widget.getName();</span>
+<span class="fc" id="L666">        List&lt;CollectorType&gt; collectorTypesToDelete = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L667">        CollectorType cType = findCollectorType(widgetName);</span>
+<span class="fc" id="L668">        collectorTypesToDelete.add(cType);</span>
+<span class="pc bpc" id="L669" title="1 of 2 branches missed.">        if(widgetName.equalsIgnoreCase(&quot;codeanalysis&quot;)){</span>
+<span class="nc" id="L670">            collectorTypesToDelete.add(CollectorType.CodeQuality);</span>
+<span class="nc" id="L671">            collectorTypesToDelete.add(CollectorType.StaticSecurityScan);</span>
+<span class="nc" id="L672">            collectorTypesToDelete.add(CollectorType.LibraryPolicy);</span>
+<span class="nc" id="L673">            collectorTypesToDelete.add(CollectorType.Test);</span>
+        }
+<span class="pc bpc" id="L675" title="1 of 2 branches missed.">        if(componentId!=null){</span>
+<span class="fc" id="L676">            Component component = componentRepository.findOne(componentId);</span>
+<span class="fc bfc" id="L677" title="All 2 branches covered.">            for (CollectorType c:collectorTypesToDelete) {</span>
+<span class="fc" id="L678">                component.getCollectorItems().remove(c);</span>
+<span class="fc" id="L679">            }</span>
+
+<span class="fc" id="L681">            componentRepository.save(component);</span>
+        }
+
+<span class="fc" id="L684">    }</span>
+
+    private void dashboardUpdate(Dashboard dashboard, int index) {
+<span class="fc bfc" id="L687" title="All 2 branches covered.">        if(index!=-1){</span>
+<span class="fc" id="L688">            dashboard.getWidgets().set(index, null);</span>
+<span class="fc" id="L689">            List&lt;Widget&gt; updatedWidgets = dashboard.getWidgets().stream().filter(Objects::nonNull).collect(Collectors.toList());</span>
+<span class="fc" id="L690">            dashboard.setWidgets(updatedWidgets);</span>
+<span class="fc" id="L691">            dashboardRepository.save(dashboard);</span>
+        }
+<span class="fc" id="L693">    }</span>
+
+    @Override
+    public void deleteWidget(Dashboard dashboard, CollectorType collectorType){
+<span class="fc bfc" id="L697" title="All 2 branches covered.">        if(CollectionUtils.isNotEmpty(dashboard.getWidgets())){</span>
+<span class="fc" id="L698">            String widgetName = findWidgetName(collectorType);</span>
+<span class="fc" id="L699">            List&lt;String&gt; widgetNames = dashboard.getWidgets().stream().map(widget-&gt; widget.getName()).collect(Collectors.toList());</span>
+<span class="fc" id="L700">            int index = widgetNames.indexOf(widgetName);</span>
+<span class="fc" id="L701">            dashboardUpdate(dashboard,index);</span>
+        }
+<span class="fc" id="L703">    }</span>
+
+    private List&lt;String&gt; findUpdateCollectorItems(List&lt;String&gt; existingWidgets,List&lt;String&gt; currentWidgets){
+<span class="pc bnc" id="L706" title="All 2 branches missed.">        List&lt;String&gt; result = existingWidgets.stream().filter(elem -&gt; !currentWidgets.contains(elem)).collect(Collectors.toList());</span>
+<span class="fc" id="L707">        return result;</span>
+    }
+
+    private static CollectorType findCollectorType(String widgetName){
+<span class="pc bpc" id="L711" title="1 of 2 branches missed.">        if(widgetName.equalsIgnoreCase(BUILD)) return CollectorType.Build;</span>
+<span class="pc bpc" id="L712" title="1 of 2 branches missed.">        if(widgetName.equalsIgnoreCase(FEATURE)) return CollectorType.AgileTool;</span>
+<span class="pc bpc" id="L713" title="1 of 2 branches missed.">        if(widgetName.equalsIgnoreCase(DEPLOY)) return CollectorType.Deployment;</span>
+<span class="pc bpc" id="L714" title="1 of 2 branches missed.">        if(widgetName.equalsIgnoreCase(REPO)) return CollectorType.SCM;</span>
+<span class="pc bpc" id="L715" title="1 of 2 branches missed.">        if(widgetName.equalsIgnoreCase(PERFORMANCE)) return CollectorType.AppPerformance;</span>
+<span class="pc bpc" id="L716" title="1 of 2 branches missed.">        if(widgetName.equalsIgnoreCase(CLOUD)) return CollectorType.Cloud;</span>
+<span class="pc bpc" id="L717" title="1 of 2 branches missed.">        if(widgetName.equalsIgnoreCase(CHATOPS)) return CollectorType.ChatOps;</span>
+<span class="pc bpc" id="L718" title="1 of 2 branches missed.">        if(widgetName.equalsIgnoreCase(TEST)) return CollectorType.Test;</span>
+<span class="fc" id="L719">        return null;</span>
+    }
+
+    private static String findWidgetName(CollectorType collectorType) {
+<span class="pc bpc" id="L723" title="7 of 9 branches missed.">        switch (collectorType) {</span>
+            case Build:
+<span class="nc" id="L725">                return BUILD;</span>
+            case AgileTool:
+<span class="nc" id="L727">                return FEATURE;</span>
+            case Deployment:
+<span class="nc" id="L729">                return DEPLOY;</span>
+            case SCM:
+<span class="fc" id="L731">                return REPO;</span>
+            case AppPerformance:
+<span class="nc" id="L733">                return PERFORMANCE;</span>
+            case Cloud:
+<span class="nc" id="L735">                return CLOUD;</span>
+            case ChatOps:
+<span class="nc" id="L737">                return CHATOPS;</span>
+            case CodeQuality:
+            case StaticSecurityScan:
+            case LibraryPolicy:
+            case Test:
+<span class="fc" id="L742">                return CODEANALYSIS;</span>
+            default:
+<span class="nc" id="L744">                return null;</span>
+        }
+
+    }
+
+
+
+
+    private void getAppAndComponentNames(List&lt;Dashboard&gt; findByOwnersList) {
+<span class="nc bnc" id="L753" title="All 2 branches missed.">        for(Dashboard dashboard: findByOwnersList){</span>
+
+
+<span class="nc" id="L756">            String appName = dashboard.getConfigurationItemBusServName();</span>
+<span class="nc" id="L757">            String compName = dashboard.getConfigurationItemBusAppName();</span>
+<span class="nc" id="L758">            setAppAndComponentNameToDashboard(dashboard, appName, compName);</span>
+<span class="nc" id="L759">        }</span>
+<span class="nc" id="L760">    }</span>
+
+    /**
+     *  Sets business service, business application and valid flag for each to the give Dashboard
+     * @param dashboard
+     * @param appName
+     * @param compName
+     */
+    private void setAppAndComponentNameToDashboard(Dashboard dashboard, String appName, String compName) {
+<span class="pc bpc" id="L769" title="1 of 4 branches missed.">        if(appName != null &amp;&amp; !&quot;&quot;.equals(appName)){</span>
+
+<span class="fc" id="L771">            Cmdb cmdb =  cmdbService.configurationItemByConfigurationItem(appName);</span>
+<span class="pc bpc" id="L772" title="1 of 2 branches missed.">            if(cmdb !=null) {</span>
+<span class="fc" id="L773">                dashboard.setConfigurationItemBusServName(cmdb.getConfigurationItem());</span>
+<span class="fc" id="L774">                dashboard.setValidServiceName(cmdb.isValidConfigItem());</span>
+            }
+        }
+<span class="pc bpc" id="L777" title="1 of 4 branches missed.">        if(compName != null &amp;&amp; !&quot;&quot;.equals(compName)){</span>
+<span class="fc" id="L778">            Cmdb cmdb = cmdbService.configurationItemByConfigurationItem(compName);</span>
+<span class="pc bpc" id="L779" title="1 of 2 branches missed.">            if(cmdb !=null) {</span>
+<span class="fc" id="L780">                dashboard.setConfigurationItemBusAppName(cmdb.getConfigurationItem());</span>
+<span class="fc" id="L781">                dashboard.setValidAppName(cmdb.isValidConfigItem());</span>
+            }
+        }
+<span class="fc" id="L784">    }</span>
+
+    /**
+     *  Takes Dashboard and checks to see if there is an existing Dashboard with the same business service and business application
+     *  Throws error if found
+     * @param dashboard
+     * @throws HygieiaException
+     */
+    private void duplicateDashboardErrorCheck(Dashboard dashboard) throws HygieiaException {
+<span class="fc" id="L793">        String appName = dashboard.getConfigurationItemBusServName();</span>
+<span class="fc" id="L794">        String compName = dashboard.getConfigurationItemBusAppName();</span>
+
+<span class="pc bpc" id="L796" title="3 of 8 branches missed.">        if(appName != null &amp;&amp; !appName.isEmpty() &amp;&amp; compName != null &amp;&amp; !compName.isEmpty()){</span>
+<span class="fc" id="L797">            Dashboard existingDashboard = dashboardRepository.findByConfigurationItemBusServNameIgnoreCaseAndConfigurationItemBusAppNameIgnoreCase(appName, compName);</span>
+<span class="pc bpc" id="L798" title="3 of 4 branches missed.">            if(existingDashboard != null &amp;&amp; !existingDashboard.getId().equals(dashboard.getId())){</span>
+<span class="nc" id="L799">                throw new HygieiaException(&quot;Existing Dashboard: &quot; + existingDashboard.getTitle(), HygieiaException.DUPLICATE_DATA);</span>
+            }
+        }
+<span class="fc" id="L802">    }</span>
+
+    /**
+     * Get all dashboards filtered by title and Pageable ( default page size = 10)
+     *
+     * @param title Title of Dashboard
+     * @param type Type of Dashboard
+     * @param pageable Pagination Object
+     * @return Page&lt;Dashboard&gt; Page of Dashboards
+     */
+    @Override
+    public Page&lt;Dashboard&gt; getDashboardByTitleWithFilter(String title, String type, Pageable pageable) {
+<span class="fc" id="L814">        Page&lt;Dashboard&gt; dashboardItems = null;</span>
+<span class="pc bpc" id="L815" title="4 of 6 branches missed.">        if ((type != null) &amp;&amp; (!type.isEmpty()) &amp;&amp; (!UNDEFINED.equalsIgnoreCase(type))) {</span>
+<span class="nc" id="L816">            dashboardItems = dashboardRepository.findAllByTypeContainingIgnoreCaseAndTitleContainingIgnoreCase(type, title, pageable);</span>
+        } else {
+<span class="fc" id="L818">            dashboardItems = dashboardRepository.findAllByTitleContainingIgnoreCase(title, pageable);</span>
+        }
+
+<span class="fc" id="L821">        return dashboardItems;</span>
+    }
+
+    /**
+     * Get count of all dashboards filtered by title
+     *
+     * @param title Title of Dashboard
+     * @param type Type of Dashboard
+     * @return Integer Count of Dashboards
+     */
+    @Override
+    public Integer getAllDashboardsByTitleCount(String title, String type) {
+<span class="fc" id="L833">        List&lt;Dashboard&gt; dashboards = null;</span>
+<span class="pc bpc" id="L834" title="4 of 6 branches missed.">        if ((type != null) &amp;&amp; (!type.isEmpty()) &amp;&amp; (!UNDEFINED.equalsIgnoreCase(type))) {</span>
+<span class="nc" id="L835">            dashboards = dashboardRepository.findAllByTypeContainingIgnoreCaseAndTitleContainingIgnoreCase(type, title);</span>
+        } else {
+<span class="fc" id="L837">            dashboards = dashboardRepository.findAllByTitleContainingIgnoreCase(title);</span>
+        }
+<span class="pc bpc" id="L839" title="1 of 2 branches missed.">        return dashboards != null ? dashboards.size() : 0;</span>
+    }
+
+    /**
+     * Get count of all dashboards, use dashboard type if supplied
+     *
+     * @param type Type of the Dashboard
+     * @return long
+     */
+    @Override
+    public long count(String type) {
+<span class="nc bnc" id="L850" title="All 6 branches missed.">        if ((type != null) &amp;&amp; (!type.isEmpty()) &amp;&amp; (!UNDEFINED.equalsIgnoreCase(type))) {</span>
+<span class="nc" id="L851">            return dashboardRepository.countByTypeContainingIgnoreCase(type);</span>
+        } else {
+<span class="nc" id="L853">            return dashboardRepository.count();</span>
+        }
+    }
+
+    /**
+     * Get all dashboards with page size (default = 10)
+     *
+     * @param type Type of Dashboard
+     * @param page size
+     * @return List of dashboards
+     */
+    @Override
+    public Page&lt;Dashboard&gt; findDashboardsByPage(String type, Pageable page) {
+<span class="nc bnc" id="L866" title="All 6 branches missed.">        if ((type != null) &amp;&amp; (!type.isEmpty()) &amp;&amp; (!UNDEFINED.equalsIgnoreCase(type))) {</span>
+<span class="nc" id="L867">            return dashboardRepository.findAllByTypeContainingIgnoreCase(type, page);</span>
+        }
+<span class="nc" id="L869">        return dashboardRepository.findAll(page);</span>
+    }
+
+    /**
+     * Get page size
+     *
+     * @return Integer
+     */
+    @Override
+    public int getPageSize() {
+<span class="nc" id="L879">        return settings.getPageSize();</span>
+    }
+
+    @Override
+    public Page&lt;Dashboard&gt; findMyDashboardsByPage(String type, Pageable page){
+<span class="nc" id="L884">        Owner owner = new Owner(AuthenticationUtil.getUsernameFromContext(), AuthenticationUtil.getAuthTypeFromContext());</span>
+<span class="nc" id="L885">        Page&lt;Dashboard&gt; ownersList = null;</span>
+
+<span class="nc bnc" id="L887" title="All 6 branches missed.">        if ((type != null) &amp;&amp; (!type.isEmpty()) &amp;&amp; (!UNDEFINED.equalsIgnoreCase(type))) {</span>
+<span class="nc" id="L888">            ownersList = dashboardRepository.findByOwnersAndTypeContainingIgnoreCase(owner, type, page);</span>
+        } else {
+<span class="nc" id="L890">            ownersList = dashboardRepository.findByOwners(owner, page);</span>
+        }
+<span class="nc bnc" id="L892" title="All 2 branches missed.">        for (Dashboard dashboard: ownersList) {</span>
+<span class="nc" id="L893">            String appName = dashboard.getConfigurationItemBusServName();</span>
+<span class="nc" id="L894">            String compName = dashboard.getConfigurationItemBusAppName();</span>
+<span class="nc" id="L895">            setAppAndComponentNameToDashboard(dashboard, appName, compName);</span>
+<span class="nc" id="L896">        }</span>
+<span class="nc" id="L897">        return ownersList;</span>
+    }
+
+    @Override
+    public long myDashboardsCount(String type){
+<span class="nc" id="L902">        Owner owner = new Owner(AuthenticationUtil.getUsernameFromContext(), AuthenticationUtil.getAuthTypeFromContext());</span>
+<span class="nc" id="L903">        List&lt;Dashboard&gt; ownersList = null;</span>
+<span class="nc bnc" id="L904" title="All 6 branches missed.">        if ((type != null) &amp;&amp; (!type.isEmpty()) &amp;&amp; (!UNDEFINED.equalsIgnoreCase(type))) {</span>
+<span class="nc" id="L905">            ownersList = dashboardRepository.findByOwnersAndTypeContainingIgnoreCase(owner, type);</span>
+        } else {
+<span class="nc" id="L907">            ownersList = dashboardRepository.findByOwners(owner);</span>
+        }
+<span class="nc bnc" id="L909" title="All 2 branches missed.">        return ownersList!=null?ownersList.size():0;</span>
+    }
+
+    @Override
+    public int getMyDashboardsByTitleCount(String title, String type){
+<span class="nc" id="L914">        Owner owner = new Owner(AuthenticationUtil.getUsernameFromContext(), AuthenticationUtil.getAuthTypeFromContext());</span>
+<span class="nc" id="L915">        List&lt;Dashboard&gt; dashboards = null;</span>
+<span class="nc bnc" id="L916" title="All 6 branches missed.">        if ((type != null) &amp;&amp; (!type.isEmpty()) &amp;&amp; (!UNDEFINED.equalsIgnoreCase(type))) {</span>
+<span class="nc" id="L917">            dashboards = dashboardRepository.findByOwnersAndTypeContainingIgnoreCaseAndTitleContainingIgnoreCase(owner,type,title);</span>
+        } else {
+<span class="nc" id="L919">            dashboards = dashboardRepository.findByOwnersAndTitleContainingIgnoreCase(owner,title);</span>
+        }
+<span class="nc bnc" id="L921" title="All 2 branches missed.">        return dashboards!=null?dashboards.size():0;</span>
+    }
+
+    @Override
+    public Page&lt;Dashboard&gt; getMyDashboardByTitleWithFilter(String title, String type, Pageable pageable) {
+<span class="nc" id="L926">        Owner owner = new Owner(AuthenticationUtil.getUsernameFromContext(), AuthenticationUtil.getAuthTypeFromContext());</span>
+<span class="nc" id="L927">        Page&lt;Dashboard&gt; ownersList = null;</span>
+<span class="nc bnc" id="L928" title="All 6 branches missed.">        if ((type != null) &amp;&amp; (!type.isEmpty()) &amp;&amp; (!UNDEFINED.equalsIgnoreCase(type))) {</span>
+<span class="nc" id="L929">            ownersList = dashboardRepository.findByOwnersAndTypeContainingIgnoreCaseAndTitleContainingIgnoreCase(owner,type,title,pageable);</span>
+        } else {
+<span class="nc" id="L931">            ownersList = dashboardRepository.findByOwnersAndTitleContainingIgnoreCase(owner,title,pageable);</span>
+        }
+
+<span class="nc bnc" id="L934" title="All 2 branches missed.">        for (Dashboard dashboard: ownersList) {</span>
+<span class="nc" id="L935">            String appName = dashboard.getConfigurationItemBusServName();</span>
+<span class="nc" id="L936">            String compName = dashboard.getConfigurationItemBusAppName();</span>
+<span class="nc" id="L937">            setAppAndComponentNameToDashboard(dashboard, appName, compName);</span>
+<span class="nc" id="L938">        }</span>
+<span class="nc" id="L939">        return ownersList;</span>
+    }
+
+
+    @Override
+    public Dashboard updateScoreSettings(ObjectId dashboardId, boolean scoreEnabled, ScoreDisplayType scoreDisplay) {
+<span class="fc" id="L945">        Dashboard dashboard = get(dashboardId);</span>
+<span class="pc bpc" id="L946" title="1 of 2 branches missed.">        if ((scoreEnabled == dashboard.isScoreEnabled()) &amp;&amp;</span>
+<span class="nc bnc" id="L947" title="All 2 branches missed.">                (scoreDisplay == dashboard.getScoreDisplay())) {</span>
+<span class="nc" id="L948">            return null;</span>
+        }
+
+<span class="fc" id="L951">        dashboard.setScoreEnabled(scoreEnabled);</span>
+<span class="fc" id="L952">        dashboard.setScoreDisplay(scoreDisplay);</span>
+<span class="fc" id="L953">        Dashboard savedDashboard = dashboardRepository.save(dashboard);</span>
+<span class="fc" id="L954">        this.scoreDashboardService.editScoreForDashboard(savedDashboard);</span>
+<span class="fc" id="L955">        return savedDashboard;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

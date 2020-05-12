@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GraphQLQuery.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.webhook.github</a> &gt; <span class="el_source">GraphQLQuery.java</span></div><h1>GraphQLQuery.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.webhook.github;
+
+<span class="nc" id="L3">public class GraphQLQuery {</span>
+    public static final String COMMITS_GRAPHQL = &quot;query ($owner: String!, $name: String!, $branch: String!, $since: GitTimestamp!) {&quot; +
+    &quot;    repository(owner: $owner, name: $name) {&quot; +
+    &quot;        ref(qualifiedName: $branch) {&quot; +
+    &quot;            target {&quot; +
+    &quot;               ... on Commit {&quot; +
+    &quot;                    history(first: 100, since: $since) {&quot; +
+    &quot;                        edges {&quot; +
+    &quot;                            cursor&quot; +
+    &quot;                            node {&quot; +
+    &quot;                                oid&quot; +
+    &quot;                                author {&quot; +
+    &quot;                                   name&quot; +
+    &quot;                                   date&quot; +
+    &quot;                                   user {&quot; +
+    &quot;                                       login&quot; +
+    &quot;                                   }&quot; +
+    &quot;                                }&quot; +
+    &quot;                                committer {&quot; +
+    &quot;                                   name&quot; +
+    &quot;                                   date&quot; +
+    &quot;                                   user {&quot; +
+    &quot;                                       login&quot; +
+    &quot;                                   }&quot; +
+    &quot;                                }&quot; +
+    &quot;                                parents(first: 10) {&quot; +
+    &quot;                                    nodes {&quot; +
+    &quot;                                        oid&quot; +
+    &quot;                                    }&quot; +
+    &quot;                                }&quot; +
+    &quot;                            }&quot; +
+    &quot;                        }&quot; +
+    &quot;                    }&quot; +
+    &quot;                }&quot; +
+    &quot;            }&quot; +
+    &quot;        }&quot; +
+    &quot;    }&quot; +
+    &quot;}&quot;;
+
+    public static final String PR_GRAPHQL_BEGIN_PRE =
+            &quot;query ($owner: String!, $name: String!, $number: Int!&quot;;
+
+    public static final String PR_GRAPHQL_COMMITS_BEGIN = &quot;, $commits: Int!&quot;;
+
+    public static final String PR_GRAPHQL_COMMENTS_BEGIN = &quot;, $comments: Int!&quot;;
+
+    public static final String PR_GRAPHQL_BEGIN_POST =
+            &quot;) {&quot; +
+            &quot;  repository(owner: $owner, name: $name) {&quot; +
+            &quot;    pullRequest(number: $number) {&quot;;
+
+    public static final String PR_GRAPHQL_COMMITS =
+            &quot;      commits(first: $commits) {&quot; +
+                    &quot;        totalCount&quot; +
+                    &quot;        nodes {&quot; +
+                    &quot;          commit {&quot; +
+                    &quot;            oid&quot; +
+                    &quot;            committedDate&quot; +
+                    &quot;            additions&quot; +
+                    &quot;            deletions&quot; +
+                    &quot;            changedFiles&quot; +
+                    &quot;            message&quot; +
+                    &quot;            status {&quot; +
+                    &quot;              context(name: \&quot;approvals/lgtmeow\&quot;) {&quot; +
+                    &quot;                state&quot; +
+                    &quot;                targetUrl&quot; +
+                    &quot;                description&quot; +
+                    &quot;                context&quot; +
+                    &quot;              }&quot; +
+                    &quot;            }&quot; +
+                    &quot;            author {&quot; +
+                    &quot;              name&quot; +
+                    &quot;              date&quot; +
+                    &quot;              user {&quot; +
+                    &quot;                login&quot; +
+                    &quot;              }&quot; +
+                    &quot;            }&quot; +
+                    &quot;          }&quot; +
+                    &quot;        }&quot; +
+                    &quot;      }&quot;;
+
+    public static final String PR_GRAPHQL_COMMENTS =
+            &quot;      comments(first: $comments) {&quot; +
+                    &quot;        totalCount&quot; +
+                    &quot;        nodes {&quot; +
+                    &quot;          bodyText&quot; +
+                    &quot;          author {&quot; +
+                    &quot;            login&quot; +
+                    &quot;          }&quot; +
+                    &quot;          createdAt&quot; +
+                    &quot;          updatedAt&quot; +
+                    &quot;        }&quot; +
+                    &quot;      }&quot;;
+
+    public static final String PR_GRAPHQL_REVIEWS =
+            &quot;      reviews(first: 100) {&quot; +
+                    &quot;        totalCount&quot; +
+                    &quot;        nodes {&quot; +
+                    &quot;          id&quot; +
+                    &quot;          bodyText&quot; +
+                    &quot;          state&quot; +
+                    &quot;          author {&quot; +
+                    &quot;            login&quot; +
+                    &quot;          }&quot; +
+                    &quot;          createdAt&quot; +
+                    &quot;          updatedAt&quot; +
+                    &quot;        }&quot; +
+                    &quot;      }&quot;;
+
+    public static final String PR_GRAPHQL_END =
+            &quot;    }&quot; +
+            &quot;  }&quot; +
+            &quot;}&quot;;
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

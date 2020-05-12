@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AuthenticationRequest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.request</a> &gt; <span class="el_source">AuthenticationRequest.java</span></div><h1>AuthenticationRequest.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.request;
+
+import javax.validation.constraints.NotNull;
+
+import com.capitalone.dashboard.model.Authentication;
+
+<span class="fc" id="L7">public class AuthenticationRequest {</span>
+
+    @NotNull
+    private String username;
+
+    @NotNull
+    private String password;
+
+    public String getUsername() {
+<span class="fc" id="L16">        return username;</span>
+    }
+
+    public void setUsername(String username) {
+<span class="fc" id="L20">        this.username = username;</span>
+<span class="fc" id="L21">    }</span>
+
+    public String getPassword() {
+<span class="fc" id="L24">        return password;</span>
+    }
+
+    public void setPassword(String password) {
+<span class="fc" id="L28">        this.password = password;</span>
+<span class="fc" id="L29">    }</span>
+
+    public Authentication toAuthentication() {
+<span class="nc" id="L32">        return new Authentication(username, password);</span>
+    }
+
+    public Authentication copyTo(Authentication authentication) {
+<span class="nc" id="L36">        Authentication updated = toAuthentication();</span>
+<span class="nc" id="L37">        updated.setId(authentication.getId());</span>
+<span class="nc" id="L38">        return updated;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

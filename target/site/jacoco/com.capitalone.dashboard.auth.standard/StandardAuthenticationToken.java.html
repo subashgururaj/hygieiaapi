@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StandardAuthenticationToken.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.auth.standard</a> &gt; <span class="el_source">StandardAuthenticationToken.java</span></div><h1>StandardAuthenticationToken.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.auth.standard;
+
+import java.util.Collection;
+
+import org.springframework.security.authentication.AbstractAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
+
+public class StandardAuthenticationToken extends AbstractAuthenticationToken {
+
+	private static final long serialVersionUID = 7187799207155545385L;
+	
+	private final Object principal;
+	private Object credentials;
+
+	@SuppressWarnings(&quot;PMD&quot;)
+	public StandardAuthenticationToken(Object principal, Object credentials) {
+<span class="fc" id="L17">		super(null);</span>
+<span class="fc" id="L18">		this.principal = principal;</span>
+<span class="fc" id="L19">		this.credentials = credentials;</span>
+<span class="fc" id="L20">		setAuthenticated(false);</span>
+<span class="fc" id="L21">	}</span>
+
+	@SuppressWarnings(&quot;PMD&quot;)
+	public StandardAuthenticationToken(Object principal, Object credentials,
+			Collection&lt;? extends GrantedAuthority&gt; authorities) {
+<span class="fc" id="L26">		super(authorities);</span>
+<span class="fc" id="L27">		this.principal = principal;</span>
+<span class="fc" id="L28">		this.credentials = credentials;</span>
+<span class="fc" id="L29">		super.setAuthenticated(true);</span>
+<span class="fc" id="L30">	}</span>
+
+	public Object getCredentials() {
+<span class="fc" id="L33">		return this.credentials;</span>
+	}
+
+	public Object getPrincipal() {
+<span class="fc" id="L37">		return this.principal;</span>
+	}
+
+	public void setAuthenticated(boolean isAuthenticated) throws IllegalArgumentException {
+<span class="fc bfc" id="L41" title="All 2 branches covered.">		if (isAuthenticated) {</span>
+<span class="fc" id="L42">			throw new IllegalArgumentException(</span>
+					&quot;Cannot set this token to trusted - use constructor which takes a GrantedAuthority list instead&quot;);
+		}
+
+<span class="fc" id="L46">		super.setAuthenticated(false);</span>
+<span class="fc" id="L47">	}</span>
+
+	@Override
+	public void eraseCredentials() {
+<span class="fc" id="L51">		super.eraseCredentials();</span>
+<span class="fc" id="L52">		credentials = null;</span>
+<span class="fc" id="L53">	}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

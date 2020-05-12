@@ -1,0 +1,263 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PipelineServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.service</a> &gt; <span class="el_source">PipelineServiceImpl.java</span></div><h1>PipelineServiceImpl.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.service;
+
+import com.capitalone.dashboard.misc.HygieiaException;
+import com.capitalone.dashboard.settings.ApiSettings;
+import com.capitalone.dashboard.model.CollectorItem;
+import com.capitalone.dashboard.model.Dashboard;
+import com.capitalone.dashboard.model.Pipeline;
+import com.capitalone.dashboard.model.PipelineCommit;
+import com.capitalone.dashboard.model.PipelineResponse;
+import com.capitalone.dashboard.model.PipelineResponseCommit;
+import com.capitalone.dashboard.model.PipelineStage;
+import com.capitalone.dashboard.model.PipelineStageType;
+import com.capitalone.dashboard.repository.CollectorItemRepository;
+import com.capitalone.dashboard.repository.DashboardRepository;
+import com.capitalone.dashboard.repository.PipelineRepository;
+import com.capitalone.dashboard.request.PipelineSearchRequest;
+import com.capitalone.dashboard.util.PipelineUtils;
+import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.GregorianCalendar;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
+
+@Service(&quot;pipeline&quot;)
+public class PipelineServiceImpl implements PipelineService {
+
+    private static final int PROD_COMMIT_DATE_RANGE_DEFAULT = -90;
+    private final PipelineRepository pipelineRepository;
+    private final DashboardRepository dashboardRepository;
+    private final CollectorItemRepository collectorItemRepository;
+    private final ApiSettings settings;
+
+    @Autowired
+    public PipelineServiceImpl(PipelineRepository pipelineRepository, DashboardRepository dashboardRepository, CollectorItemRepository collectorItemRepository,
+<span class="fc" id="L44">                               ApiSettings settings) {</span>
+<span class="fc" id="L45">        this.pipelineRepository = pipelineRepository;</span>
+<span class="fc" id="L46">        this.dashboardRepository = dashboardRepository;</span>
+<span class="fc" id="L47">        this.collectorItemRepository = collectorItemRepository;</span>
+<span class="fc" id="L48">        this.settings = settings;</span>
+<span class="fc" id="L49">    }</span>
+
+    @Override
+    public Iterable&lt;PipelineResponse&gt; search(PipelineSearchRequest searchRequest) throws HygieiaException {
+<span class="fc" id="L53">        List&lt;PipelineResponse&gt; pipelineResponses = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L54" title="All 2 branches covered.">        for(ObjectId collectorItemId : searchRequest.getCollectorItemId()){</span>
+<span class="fc" id="L55">            Pipeline pipeline = getOrCreatePipeline(collectorItemId);</span>
+<span class="fc" id="L56">            pipelineResponses.add(buildPipelineResponse(pipeline, searchRequest.getBeginDate(), searchRequest.getEndDate()));</span>
+<span class="fc" id="L57">        }</span>
+<span class="fc" id="L58">        return pipelineResponses;</span>
+    }
+
+    protected Pipeline getOrCreatePipeline(ObjectId collectorItemId) {
+<span class="fc" id="L62">        Pipeline pipeline = pipelineRepository.findByCollectorItemId(collectorItemId);</span>
+<span class="pc bpc" id="L63" title="1 of 2 branches missed.">        if(pipeline == null){</span>
+<span class="nc" id="L64">            pipeline = new Pipeline();</span>
+<span class="nc" id="L65">            pipeline.setCollectorItemId(collectorItemId);</span>
+<span class="nc" id="L66">            pipelineRepository.save(pipeline);</span>
+        }
+<span class="fc" id="L68">        return pipeline;</span>
+    }
+
+    private PipelineResponse buildPipelineResponse(Pipeline pipeline, Long beginDate, Long endDate) throws HygieiaException {
+<span class="fc" id="L72">        Long lowerBound = beginDate;</span>
+<span class="pc bpc" id="L73" title="1 of 2 branches missed.">        if(beginDate == null){</span>
+<span class="fc" id="L74">            Calendar cal = new GregorianCalendar();</span>
+<span class="fc" id="L75">            cal.setTime(new Date());</span>
+<span class="fc" id="L76">            cal.add(Calendar.DAY_OF_MONTH, PROD_COMMIT_DATE_RANGE_DEFAULT);</span>
+<span class="fc" id="L77">            lowerBound = cal.getTime().getTime();</span>
+        }
+<span class="pc bpc" id="L79" title="1 of 2 branches missed.">        Long upperBound = endDate != null ? endDate : new Date().getTime();</span>
+        /**
+         * get the collector item and dashboard
+         */
+<span class="fc" id="L83">        CollectorItem dashboardCollectorItem = collectorItemRepository.findOne(pipeline.getCollectorItemId());</span>
+<span class="pc bpc" id="L84" title="1 of 2 branches missed.">        if(dashboardCollectorItem.getOptions().get(&quot;dashboardId&quot;) == null) {</span>
+<span class="nc" id="L85">            throw new HygieiaException(&quot; Collector Item: &quot; + dashboardCollectorItem.getId() + &quot; is not associated to a dashboard. &quot;, HygieiaException.BAD_DATA);</span>
+        }
+<span class="fc" id="L87">        String dashboardId = (String) dashboardCollectorItem.getOptions().get(&quot;dashboardId&quot;);</span>
+<span class="fc" id="L88">        Dashboard dashboard = dashboardRepository.findOne(new ObjectId(dashboardId));</span>
+<span class="pc bpc" id="L89" title="1 of 2 branches missed.">        if(dashboard == null) {</span>
+<span class="nc" id="L90">            throw new HygieiaException(&quot; Dashboard &quot; + dashboardId + &quot; is not found for collectorItem: &quot; + dashboardCollectorItem.getId() + &quot; &quot;, HygieiaException.BAD_DATA);</span>
+        }
+<span class="fc" id="L92">        PipelineResponse pipelineResponse = new PipelineResponse();</span>
+<span class="fc" id="L93">        pipelineResponse.setCollectorItemId(dashboardCollectorItem.getId());</span>
+<span class="fc" id="L94">        pipelineResponse.setProdStage(PipelineUtils.getProdStage(dashboard));</span>
+<span class="fc" id="L95">        pipelineResponse.setOrderMap(PipelineUtils.getOrderForStages(dashboard));</span>
+
+        /**
+         * iterate over the pipeline stages
+         * **/
+<span class="fc" id="L100">        Map&lt;PipelineStage, String&gt; stageToEnvironmentNameMap = PipelineUtils.getStageToEnvironmentNameMap(dashboard);</span>
+<span class="fc" id="L101">        List&lt;PipelineStage&gt; pipelineStageList = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L102" title="All 2 branches covered.">        for (PipelineStage pl : stageToEnvironmentNameMap.keySet()) {</span>
+<span class="fc" id="L103">            pipelineStageList.add(pl);</span>
+<span class="fc" id="L104">        }</span>
+<span class="fc" id="L105">        Map&lt;String,String&gt; orderMap = pipelineResponse.getOrderMap();</span>
+<span class="fc bfc" id="L106" title="All 2 branches covered.">        for (Map.Entry&lt;String, String&gt; entry : orderMap.entrySet())</span>
+            {
+<span class="fc" id="L108">                String stageName = entry.getValue();</span>
+<span class="fc bfc" id="L109" title="All 2 branches covered.">                for(PipelineStage stage : pipelineStageList){</span>
+<span class="fc bfc" id="L110" title="All 2 branches covered.">                    if(stageName.equalsIgnoreCase(stage.getName())) {</span>
+<span class="fc" id="L111">                        List&lt;PipelineResponseCommit&gt; commitsForStage = findNotPropagatedCommits(dashboard, pipeline, stage, pipelineStageList,orderMap);</span>
+<span class="fc" id="L112">                        pipelineResponse.setStageCommits(stage, commitsForStage);</span>
+                        /**
+                         * remove prod commits outside of filter date range
+                         */
+<span class="fc" id="L116">                        Iterator&lt;PipelineResponseCommit&gt; commitIterator = commitsForStage.iterator();</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">                            while (commitIterator.hasNext()) {</span>
+<span class="fc" id="L118">                                PipelineResponseCommit commit = commitIterator.next();</span>
+<span class="pc bpc" id="L119" title="1 of 2 branches missed.">                                if (!isBetween(commit.getProcessedTimestamps().get(stage.getName()), lowerBound, upperBound)) {</span>
+<span class="fc" id="L120">                                    commitIterator.remove();</span>
+                                }
+<span class="fc" id="L122">                            }</span>
+                      }
+<span class="fc" id="L124">                }</span>
+<span class="fc" id="L125">            }</span>
+<span class="fc" id="L126">        pipelineResponse.setUnmappedStages(findUnmappedStages(dashboard,pipelineStageList)</span>
+<span class="pc" id="L127">                .stream().map(it -&gt; it.getName()).collect(Collectors.toList()));</span>
+
+<span class="fc" id="L129">        return pipelineResponse;</span>
+    }
+
+    /**
+     * finds any stages for a dashboard that aren't mapped.
+     * @param dashboard
+     * @return a list of deploy PipelineStages that are not mapped
+     */
+    private List&lt;PipelineStage&gt; findUnmappedStages(Dashboard dashboard,List&lt;PipelineStage&gt; pipelineStageList) throws HygieiaException {
+<span class="fc" id="L138">        List&lt;PipelineStage&gt; unmappedStages = new ArrayList&lt;&gt;();</span>
+
+<span class="fc" id="L140">        Map&lt;PipelineStage, String&gt; stageToEnvironmentNameMap = PipelineUtils.getStageToEnvironmentNameMap(dashboard);</span>
+
+<span class="fc bfc" id="L142" title="All 2 branches covered.">        for (PipelineStage systemStage : pipelineStageList) {</span>
+<span class="fc bfc" id="L143" title="All 2 branches covered.">            if (PipelineStageType.DEPLOY.equals(systemStage.getType())) {</span>
+<span class="fc" id="L144">                String mappedName = stageToEnvironmentNameMap.get(systemStage);</span>
+<span class="pc bpc" id="L145" title="2 of 4 branches missed.">                if (mappedName == null || mappedName.isEmpty()) {</span>
+<span class="nc" id="L146">                    unmappedStages.add(systemStage);</span>
+                }
+            }
+<span class="fc" id="L149">        }</span>
+
+<span class="fc" id="L151">        return unmappedStages;</span>
+    }
+
+    /**
+     * Finds a map of commits for all stages after the current stage
+     * @param stage
+     * @param pipeline
+     * @param dashboard
+     * @return
+     */
+    private Map&lt;String, PipelineCommit&gt; getCommitsAfterStage(PipelineStage stage, Pipeline pipeline, Dashboard dashboard,List&lt;PipelineStage&gt; pipelineStageList,Map&lt;String,String&gt; orderMap) throws HygieiaException {
+<span class="fc" id="L162">        Map&lt;String, PipelineCommit&gt; unionOfAllSets = new HashMap&lt;&gt;();</span>
+        // get key(ordinal) for stage name
+<span class="fc" id="L164">        List&lt;String&gt; list = getKeysByValue(orderMap,stage.getName());</span>
+<span class="fc" id="L165">        int ordinal = Integer.parseInt(list.get(0));</span>
+<span class="fc bfc" id="L166" title="All 2 branches covered.">        for (int systemStageOrdinal = ordinal+1; systemStageOrdinal &lt; pipelineStageList.size(); ++systemStageOrdinal) {</span>
+<span class="fc" id="L167">            PipelineStage systemStage = null;</span>
+<span class="fc bfc" id="L168" title="All 2 branches covered.">            for (Map.Entry&lt;String, String&gt; entry : orderMap.entrySet()) {</span>
+<span class="fc" id="L169">                String stageOrder = entry.getKey();</span>
+<span class="fc" id="L170">                String stageName = entry.getValue();</span>
+<span class="fc bfc" id="L171" title="All 2 branches covered.">                if(Integer.parseInt(stageOrder) == systemStageOrdinal){</span>
+<span class="fc bfc" id="L172" title="All 2 branches covered.">                    for(PipelineStage currentStage : pipelineStageList){</span>
+<span class="fc bfc" id="L173" title="All 2 branches covered.">                        if(stageName.equalsIgnoreCase(currentStage.getName())){</span>
+<span class="fc" id="L174">                             systemStage = currentStage;</span>
+                        }
+<span class="fc" id="L176">                    }</span>
+                }
+<span class="fc" id="L178">            }</span>
+<span class="fc" id="L179">            Map&lt;String, PipelineCommit&gt; commits = findCommitsForStage(dashboard, pipeline, systemStage);</span>
+<span class="fc" id="L180">            unionOfAllSets.putAll(commits);</span>
+        }
+<span class="fc" id="L182">        return unionOfAllSets;</span>
+    }
+
+
+    private  &lt;T, E&gt; List&lt;T&gt; getKeysByValue(Map&lt;T, E&gt; map, E value) {
+<span class="fc" id="L187">        return map.entrySet()</span>
+<span class="fc" id="L188">                .stream()</span>
+<span class="fc" id="L189">                .filter(entry -&gt; Objects.equals(entry.getValue(), value))</span>
+<span class="fc" id="L190">                .map(Map.Entry::getKey)</span>
+<span class="fc" id="L191">                .collect(Collectors.toList());</span>
+    }
+
+    private boolean isBetween(Long commitTimestamp, Long lowerBound, Long upperBound){
+<span class="pc bpc" id="L195" title="3 of 4 branches missed.">        return (lowerBound &lt;= commitTimestamp &amp;&amp; commitTimestamp &lt;= upperBound);</span>
+    }
+
+    /**
+     * For a given commit, will traverse the pipeline and find the time it entered in each stage of the pipeline
+     * @param commit
+     * @param dashboard
+     * @param pipeline
+     * @return
+     */
+    private PipelineResponseCommit applyStageTimestamps(PipelineResponseCommit commit, Dashboard dashboard, Pipeline pipeline,List&lt;PipelineStage&gt; pipelineStageList) throws HygieiaException {
+<span class="fc" id="L206">        PipelineResponseCommit returnCommit = new PipelineResponseCommit(commit);</span>
+
+<span class="fc bfc" id="L208" title="All 2 branches covered.">        for(PipelineStage systemStage : pipelineStageList) {</span>
+            //get commits for a given stage
+<span class="fc" id="L210">            Map&lt;String, PipelineCommit&gt; commitMap = findCommitsForStage(dashboard, pipeline, systemStage);</span>
+
+            //if this commit doesnt have a processed timestamp for this stage, add one
+<span class="fc" id="L213">            PipelineCommit pipelineCommit = commitMap.get(commit.getScmRevisionNumber());</span>
+<span class="pc bpc" id="L214" title="1 of 4 branches missed.">            if(pipelineCommit != null &amp;&amp; !returnCommit.getProcessedTimestamps().containsKey(systemStage.getName())){</span>
+<span class="fc" id="L215">                Long timestamp = pipelineCommit.getTimestamp();</span>
+<span class="fc" id="L216">                returnCommit.addNewPipelineProcessedTimestamp(systemStage, timestamp);</span>
+            }
+<span class="fc" id="L218">        }</span>
+<span class="fc" id="L219">        return returnCommit;</span>
+    }
+
+    /**
+     * Gets all commits for a given pipeline stage, taking into account the mappings for environment stages
+     * @param dashboard
+     * @param pipeline
+     * @param stage
+     * @return
+     */
+    private Map&lt;String, PipelineCommit&gt; findCommitsForStage(Dashboard dashboard, Pipeline pipeline, PipelineStage stage) throws HygieiaException {
+<span class="fc" id="L230">        Map&lt;String, PipelineCommit&gt; commitMap = new HashMap&lt;&gt;();</span>
+
+<span class="fc" id="L232">        String pseudoEnvironmentName =</span>
+<span class="fc bfc" id="L233" title="All 4 branches covered.">                PipelineStage.COMMIT.equals(stage) || PipelineStage.BUILD.equals(stage)? stage.getName() :</span>
+<span class="fc" id="L234">                        PipelineUtils.getStageToEnvironmentNameMap(dashboard).get(stage);</span>
+
+<span class="pc bpc" id="L236" title="1 of 2 branches missed.">        if(pseudoEnvironmentName != null){</span>
+<span class="fc" id="L237">            commitMap = pipeline.getCommitsByEnvironmentName(pseudoEnvironmentName);</span>
+        }
+<span class="fc" id="L239">        return commitMap;</span>
+    }
+
+    /**
+     * get the commits for a given stage by finding which commits havent passed to a later stage
+     * @param dashboard dashboard
+     * @param pipeline pipeline for that dashboard
+     * @param stage current stage
+     * @return a list of all commits as pipeline response commits that havent moved past the current stage
+     */
+    public List&lt;PipelineResponseCommit&gt; findNotPropagatedCommits(Dashboard dashboard, Pipeline pipeline, PipelineStage stage,List&lt;PipelineStage&gt; pipelineStageList,Map&lt;String,String&gt; orderMap) throws HygieiaException {
+<span class="fc" id="L250">        Map&lt;String, PipelineCommit&gt; startingStage = findCommitsForStage(dashboard, pipeline, stage);</span>
+<span class="fc" id="L251">        Map&lt;String, PipelineCommit&gt; commitsInLaterStages = getCommitsAfterStage(stage, pipeline, dashboard,pipelineStageList,orderMap);</span>
+
+<span class="fc" id="L253">        List&lt;PipelineResponseCommit&gt; notPropagatedCommits = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L254" title="All 2 branches covered.">        for(Map.Entry&lt;String,PipelineCommit&gt; entry : startingStage.entrySet()){</span>
+<span class="fc bfc" id="L255" title="All 2 branches covered.">            if(!commitsInLaterStages.containsKey(entry.getKey())) {</span>
+<span class="fc" id="L256">                PipelineResponseCommit commit = applyStageTimestamps(new PipelineResponseCommit((PipelineCommit) entry.getValue()), dashboard, pipeline, pipelineStageList);</span>
+<span class="fc" id="L257">                notPropagatedCommits.add(commit);</span>
+            }
+<span class="fc" id="L259">        }</span>
+<span class="fc" id="L260">        return notPropagatedCommits;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

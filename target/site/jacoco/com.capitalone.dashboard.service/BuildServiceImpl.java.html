@@ -1,0 +1,327 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BuildServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.service</a> &gt; <span class="el_source">BuildServiceImpl.java</span></div><h1>BuildServiceImpl.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.service;
+
+import com.capitalone.dashboard.misc.HygieiaException;
+import com.capitalone.dashboard.model.Build;
+import com.capitalone.dashboard.model.BuildStage;
+import com.capitalone.dashboard.model.BuildStatus;
+import com.capitalone.dashboard.model.CodeReposBuilds;
+import com.capitalone.dashboard.model.Collector;
+import com.capitalone.dashboard.model.CollectorItem;
+import com.capitalone.dashboard.model.CollectorType;
+import com.capitalone.dashboard.model.Component;
+import com.capitalone.dashboard.model.Dashboard;
+import com.capitalone.dashboard.model.DataResponse;
+import com.capitalone.dashboard.model.QBuild;
+import com.capitalone.dashboard.model.RepoBranch;
+import com.capitalone.dashboard.repository.BuildRepository;
+import com.capitalone.dashboard.repository.CodeReposBuildsRepository;
+import com.capitalone.dashboard.repository.CollectorItemRepository;
+import com.capitalone.dashboard.repository.CollectorRepository;
+import com.capitalone.dashboard.repository.ComponentRepository;
+import com.capitalone.dashboard.request.BuildDataCreateRequest;
+import com.capitalone.dashboard.request.BuildSearchRequest;
+import com.capitalone.dashboard.request.CollectorRequest;
+import com.capitalone.dashboard.response.BuildDataCreateResponse;
+import com.capitalone.dashboard.settings.ApiSettings;
+import com.google.common.collect.Sets;
+import com.mysema.query.BooleanBuilder;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang.StringUtils;
+import org.bson.types.ObjectId;
+import org.joda.time.LocalDate;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.stereotype.Service;
+
+import javax.validation.constraints.NotNull;
+import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+@Service
+public class BuildServiceImpl implements BuildService {
+
+    private final BuildRepository buildRepository;
+    private final ComponentRepository componentRepository;
+    private final CollectorRepository collectorRepository;
+    private final CollectorService collectorService;
+    private final DashboardService dashboardService;
+    private final CollectorItemRepository collectorItemRepository;
+    private final CodeReposBuildsRepository codeReposBuildsRepository;
+
+    @Autowired
+    private ApiSettings settings;
+
+    @Autowired
+    public BuildServiceImpl(BuildRepository buildRepository,
+                            ComponentRepository componentRepository,
+                            CollectorRepository collectorRepository,
+                            CollectorService collectorService,
+                            DashboardService dashboardService,
+                            CollectorItemRepository collectorItemRepository,
+                            ApiSettings settings,
+<span class="fc" id="L70">                            CodeReposBuildsRepository codeReposBuildsRepository) {</span>
+<span class="fc" id="L71">        this.buildRepository = buildRepository;</span>
+<span class="fc" id="L72">        this.componentRepository = componentRepository;</span>
+<span class="fc" id="L73">        this.collectorRepository = collectorRepository;</span>
+<span class="fc" id="L74">        this.collectorService = collectorService;</span>
+<span class="fc" id="L75">        this.dashboardService = dashboardService;</span>
+<span class="fc" id="L76">        this.collectorItemRepository = collectorItemRepository;</span>
+<span class="fc" id="L77">        this.settings = settings;</span>
+<span class="fc" id="L78">        this.codeReposBuildsRepository = codeReposBuildsRepository;</span>
+<span class="fc" id="L79">    }</span>
+
+    @Override
+    public DataResponse&lt;Iterable&lt;Build&gt;&gt; search(BuildSearchRequest request) {
+<span class="fc" id="L83">        CollectorItem item = null;</span>
+<span class="fc" id="L84">        Component component = componentRepository.findOne(request.getComponentId());</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">        if ( (component == null)</span>
+<span class="fc bfc" id="L86" title="All 2 branches covered.">                || ((item = component.getLastUpdatedCollectorItemForType(CollectorType.Build)) == null) ) {</span>
+<span class="fc" id="L87">            Iterable&lt;Build&gt; results = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L88">            return new DataResponse&lt;&gt;(results, new Date().getTime());</span>
+        }
+
+<span class="fc" id="L91">        QBuild build = new QBuild(&quot;build&quot;);</span>
+<span class="fc" id="L92">        BooleanBuilder builder = new BooleanBuilder();</span>
+
+<span class="fc" id="L94">        builder.and(build.collectorItemId.eq(item.getId()));</span>
+
+<span class="fc bfc" id="L96" title="All 2 branches covered.">        if (request.getNumberOfDays() != null) {</span>
+<span class="fc" id="L97">            long endTimeTarget = new LocalDate().minusDays(request.getNumberOfDays()).toDate().getTime();</span>
+<span class="fc" id="L98">            builder.and(build.endTime.goe(endTimeTarget));</span>
+<span class="fc" id="L99">        } else {</span>
+<span class="pc bpc" id="L100" title="1 of 2 branches missed.">            if (request.validStartDateRange()) {</span>
+<span class="nc" id="L101">                builder.and(build.startTime.between(request.getStartDateBegins(), request.getStartDateEnds()));</span>
+            }
+<span class="pc bpc" id="L103" title="1 of 2 branches missed.">            if (request.validEndDateRange()) {</span>
+<span class="nc" id="L104">                builder.and(build.endTime.between(request.getEndDateBegins(), request.getEndDateEnds()));</span>
+            }
+        }
+<span class="pc bpc" id="L107" title="1 of 2 branches missed.">        if (request.validDurationRange()) {</span>
+<span class="nc" id="L108">            builder.and(build.duration.between(request.getDurationGreaterThan(), request.getDurationLessThan()));</span>
+        }
+
+<span class="pc bpc" id="L111" title="1 of 2 branches missed.">        if (!request.getBuildStatuses().isEmpty()) {</span>
+<span class="nc" id="L112">            builder.and(build.buildStatus.in(request.getBuildStatuses()));</span>
+        }
+
+<span class="fc" id="L115">        Collector collector = collectorRepository.findOne(item.getCollectorId());</span>
+
+        Iterable&lt;Build&gt; result;
+<span class="pc bpc" id="L118" title="1 of 2 branches missed.">        if (request.getMax() == null) {</span>
+<span class="fc" id="L119">            result = buildRepository.findAll(builder.getValue());</span>
+        } else {
+<span class="nc" id="L121">            PageRequest pageRequest = new PageRequest(0, request.getMax(), Sort.Direction.DESC, &quot;timestamp&quot;);</span>
+<span class="nc" id="L122">            result = buildRepository.findAll(builder.getValue(), pageRequest).getContent();</span>
+        }
+
+<span class="fc" id="L125">        return new DataResponse&lt;&gt;(result, collector.getLastExecuted());</span>
+    }
+
+    protected Build createBuild(BuildDataCreateRequest request) throws HygieiaException {
+        /**
+         * Step 1: create Collector if not there
+         * Step 2: create Collector item if not there
+         * Step 3: Insert build data if new. If existing, update it.
+         */
+<span class="fc" id="L134">        Collector collector = createCollector();</span>
+
+<span class="pc bpc" id="L136" title="1 of 2 branches missed.">        if (collector == null) {</span>
+<span class="nc" id="L137">            throw new HygieiaException(&quot;Failed creating Build collector.&quot;, HygieiaException.COLLECTOR_CREATE_ERROR);</span>
+        }
+
+<span class="fc" id="L140">        CollectorItem collectorItem = createCollectorItem(collector, request);</span>
+
+<span class="pc bpc" id="L142" title="1 of 2 branches missed.">        if (collectorItem == null) {</span>
+<span class="nc" id="L143">            throw new HygieiaException(&quot;Failed creating Build collector item.&quot;, HygieiaException.COLLECTOR_ITEM_CREATE_ERROR);</span>
+        }
+
+<span class="fc" id="L146">        Build build = createBuild(collectorItem, request);</span>
+
+<span class="pc bpc" id="L148" title="1 of 2 branches missed.">        if (build == null) {</span>
+<span class="nc" id="L149">            throw new HygieiaException(&quot;Failed inserting/updating build information.&quot;, HygieiaException.ERROR_INSERTING_DATA);</span>
+        }
+
+<span class="fc" id="L152">        return build;</span>
+
+    }
+
+    @Override
+    public String create(BuildDataCreateRequest request) throws HygieiaException {
+<span class="fc" id="L158">        Build build = createBuild(request);</span>
+<span class="fc" id="L159">        return build.getId().toString();</span>
+    }
+
+    @Override
+    public String createV2(BuildDataCreateRequest request) throws HygieiaException {
+<span class="fc" id="L164">        Build build = createBuild(request);</span>
+<span class="fc" id="L165">        return String.format(&quot;%s,%s&quot;, build.getId().toString(), build.getCollectorItemId().toString());</span>
+    }
+
+    @Override
+    public BuildDataCreateResponse createV3(BuildDataCreateRequest request) throws HygieiaException {
+<span class="fc" id="L170">        BuildDataCreateResponse response = new BuildDataCreateResponse();</span>
+<span class="fc" id="L171">        Build build = createBuild(request);</span>
+        try {
+<span class="fc" id="L173">            org.apache.commons.beanutils.BeanUtils.copyProperties(response, build);</span>
+        }
+<span class="nc" id="L175">        catch (IllegalAccessException | InvocationTargetException e) {</span>
+<span class="nc" id="L176">            throw new HygieiaException(e);</span>
+        }
+        finally {
+<span class="fc bfc" id="L179" title="All 2 branches covered.">            if(settings.isLookupDashboardForBuildDataCreate()) {</span>
+<span class="fc" id="L180">                populateDashboardId(response);</span>
+            }
+        }
+<span class="fc" id="L183">        return response;</span>
+    }
+
+    private void populateDashboardId(BuildDataCreateResponse response) {
+<span class="pc bpc" id="L187" title="1 of 2 branches missed.">        if (response == null) return;</span>
+
+<span class="fc" id="L189">        CollectorItem collectorItem = collectorItemRepository.findOne(response.getCollectorItemId());</span>
+<span class="pc bpc" id="L190" title="1 of 2 branches missed.">        if (collectorItem == null) return;</span>
+
+<span class="fc" id="L192">        List&lt;Dashboard&gt; dashboards = dashboardService.getDashboardsByCollectorItems</span>
+<span class="fc" id="L193">                (Collections.singleton(collectorItem), CollectorType.Build);</span>
+        /*
+         * retrieve the dashboardId only if 1 dashboard is associated for this collectorItem
+         * */
+<span class="pc bpc" id="L197" title="2 of 4 branches missed.">        if (CollectionUtils.isNotEmpty(dashboards) &amp;&amp; dashboards.size() == 1) {</span>
+<span class="fc" id="L198">            response.setDashboardId(dashboards.iterator().next().getId());</span>
+        }
+
+<span class="fc" id="L201">    }</span>
+
+    private Collector createCollector() {
+<span class="fc" id="L204">        CollectorRequest collectorReq = new CollectorRequest();</span>
+<span class="fc" id="L205">        collectorReq.setName(&quot;Hudson&quot;);  //for now hardcode it.</span>
+<span class="fc" id="L206">        collectorReq.setCollectorType(CollectorType.Build);</span>
+<span class="fc" id="L207">        Collector col = collectorReq.toCollector();</span>
+<span class="fc" id="L208">        col.setEnabled(true);</span>
+<span class="fc" id="L209">        col.setOnline(true);</span>
+<span class="fc" id="L210">        col.setLastExecuted(System.currentTimeMillis());</span>
+<span class="fc" id="L211">        Map&lt;String, Object&gt; allOptions = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L212">        allOptions.put(&quot;jobUrl&quot;, &quot;&quot;);</span>
+<span class="fc" id="L213">        allOptions.put(&quot;instanceUrl&quot;, &quot;&quot;);</span>
+<span class="fc" id="L214">        allOptions.put(&quot;jobName&quot;,&quot;&quot;);</span>
+
+<span class="fc" id="L216">        Map&lt;String, Object&gt; uniqueOptions = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L217">        uniqueOptions.put(&quot;jobUrl&quot;, &quot;&quot;);</span>
+<span class="fc" id="L218">        uniqueOptions.put(&quot;jobName&quot;,&quot;&quot;);</span>
+
+<span class="fc" id="L220">        col.setAllFields(allOptions);</span>
+<span class="fc" id="L221">        col.setUniqueFields(uniqueOptions);</span>
+<span class="fc" id="L222">        col.setSearchFields(Arrays.asList(&quot;options.jobName&quot;,&quot;niceName&quot;));</span>
+<span class="fc" id="L223">        return collectorService.createCollector(col);</span>
+    }
+
+    private CollectorItem createCollectorItem(Collector collector, BuildDataCreateRequest request) throws HygieiaException {
+<span class="fc" id="L227">        CollectorItem tempCi = new CollectorItem();</span>
+<span class="fc" id="L228">        tempCi.setCollectorId(collector.getId());</span>
+<span class="fc" id="L229">        tempCi.setDescription(request.getJobName());</span>
+<span class="fc" id="L230">        tempCi.setPushed(true);</span>
+<span class="fc" id="L231">        tempCi.setLastUpdated(System.currentTimeMillis());</span>
+<span class="fc" id="L232">        Map&lt;String, Object&gt; option = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L233">        option.put(&quot;jobName&quot;, request.getJobName());</span>
+<span class="fc" id="L234">        option.put(&quot;jobUrl&quot;, request.getJobUrl());</span>
+<span class="fc" id="L235">        option.put(&quot;instanceUrl&quot;, request.getInstanceUrl());</span>
+<span class="fc" id="L236">        tempCi.setNiceName(request.getNiceName());</span>
+<span class="fc" id="L237">        tempCi.getOptions().putAll(option);</span>
+<span class="pc bpc" id="L238" title="1 of 2 branches missed.">        if (StringUtils.isEmpty(tempCi.getNiceName())) {</span>
+<span class="fc" id="L239">            return collectorService.createCollectorItem(tempCi);</span>
+        }
+<span class="nc" id="L241">        return collectorService.createCollectorItemByNiceNameAndJobName(tempCi, request.getJobName());</span>
+    }
+
+    private Build createBuild(CollectorItem collectorItem, BuildDataCreateRequest request) {
+<span class="fc" id="L245">        Build build = buildRepository.findByCollectorItemIdAndNumber(collectorItem.getId(),</span>
+<span class="fc" id="L246">                request.getNumber());</span>
+<span class="pc bpc" id="L247" title="1 of 2 branches missed.">        if (build == null) {</span>
+<span class="fc" id="L248">            build = new Build();</span>
+        }
+<span class="fc" id="L250">        build.setNumber(request.getNumber());</span>
+<span class="fc" id="L251">        build.setBuildUrl(request.getBuildUrl());</span>
+<span class="fc" id="L252">        build.setStartTime(request.getStartTime());</span>
+<span class="fc" id="L253">        build.setEndTime(request.getEndTime());</span>
+<span class="fc" id="L254">        build.setDuration(request.getDuration());</span>
+<span class="fc" id="L255">        build.setStartedBy(request.getStartedBy());</span>
+<span class="fc" id="L256">        build.setBuildStatus(BuildStatus.fromString(request.getBuildStatus()));</span>
+<span class="fc" id="L257">        build.setCollectorItemId(collectorItem.getId());</span>
+<span class="fc" id="L258">        build.setSourceChangeSet(request.getSourceChangeSet());</span>
+<span class="fc" id="L259">        build.setTimestamp(System.currentTimeMillis());</span>
+<span class="pc bpc" id="L260" title="1 of 2 branches missed.">        if (CollectionUtils.isNotEmpty(request.getStages())) {</span>
+<span class="nc" id="L261">            build.setStages(populateStages(request.getStages()));</span>
+        }
+<span class="fc" id="L263">        Set&lt;RepoBranch&gt; repoBranches = Sets.newHashSet();</span>
+<span class="fc" id="L264">        repoBranches.addAll(build.getCodeRepos());</span>
+<span class="fc" id="L265">        repoBranches.addAll(request.getCodeRepos());</span>
+<span class="fc" id="L266">        repoBranches.stream().forEach(repoBranch -&gt; createSCMCollectorItem(repoBranch));</span>
+        /*
+         * This is a Quick fix until feature toggle via ff4j is implemented which is coming up soon
+         * */
+<span class="pc bpc" id="L270" title="2 of 4 branches missed.">        boolean  filterLibraryRepos = settings.getWebHook() != null &amp;&amp; settings.getWebHook().getJenkinsBuild() != null</span>
+<span class="pc bpc" id="L271" title="1 of 2 branches missed.">                &amp;&amp; settings.getWebHook().getJenkinsBuild().isEnableFilterLibraryRepos();</span>
+<span class="pc bpc" id="L272" title="1 of 4 branches missed.">        if(filterLibraryRepos &amp;&amp; CollectionUtils.isNotEmpty(repoBranches)) {</span>
+<span class="fc" id="L273">            Set&lt;RepoBranch&gt; copyRepoBranches = Sets.newHashSet(repoBranches);</span>
+<span class="fc bfc" id="L274" title="All 2 branches covered.">            for (RepoBranch repoBranch : copyRepoBranches) {</span>
+<span class="fc" id="L275">                final String codeRepo = StringUtils.lowerCase(repoBranch.getUrl());</span>
+<span class="fc" id="L276">                CodeReposBuilds entity = codeReposBuildsRepository.findByCodeRepo(codeRepo);</span>
+<span class="fc bfc" id="L277" title="All 2 branches covered.">                if(entity == null) {</span>
+<span class="fc" id="L278">                    entity = new CodeReposBuilds();</span>
+                }
+<span class="fc" id="L280">                int threshold = settings.getWebHook().getJenkinsBuild().getExcludeLibraryRepoThreshold();</span>
+<span class="fc bfc" id="L281" title="All 2 branches covered.">                if (CollectionUtils.size(entity.getBuildCollectorItems()) &gt; threshold) {</span>
+                    // remove the repoBranch from Build
+<span class="fc" id="L283">                    repoBranches.remove(repoBranch);</span>
+                }
+<span class="fc" id="L285">                entity.setCodeRepo(codeRepo);</span>
+<span class="fc" id="L286">                entity.getBuildCollectorItems().add(collectorItem.getId());</span>
+<span class="fc" id="L287">                entity.setTimestamp(System.currentTimeMillis());</span>
+<span class="fc" id="L288">                codeReposBuildsRepository.save(entity);</span>
+<span class="fc" id="L289">            }</span>
+        }
+<span class="fc" id="L291">        build.getCodeRepos().clear();</span>
+<span class="fc" id="L292">        build.getCodeRepos().addAll(repoBranches);</span>
+<span class="fc" id="L293">        return buildRepository.save(build); // Save = Update (if ID present) or Insert (if ID not there)</span>
+    }
+
+    private List&lt;BuildStage&gt; populateStages(List&lt;BuildStage&gt; buildStages) {
+<span class="nc" id="L297">        buildStages.stream().forEach(buildStage -&gt; {</span>
+<span class="nc" id="L298">            buildStage.setId(ObjectId.get());</span>
+<span class="nc" id="L299">        });</span>
+<span class="nc" id="L300">        return buildStages;</span>
+    }
+
+    private void createSCMCollectorItem(@NotNull RepoBranch repoBranch) {
+        //Check if collector item exists else create one.
+<span class="pc bpc" id="L305" title="1 of 2 branches missed.">        if (RepoBranch.RepoType.GIT.equals(repoBranch.getType())) {</span>
+<span class="fc" id="L306">            Collector collector = collectorRepository.findByName(settings.getGitToolName());</span>
+<span class="fc bfc" id="L307" title="All 2 branches covered.">            if (collector == null) return;</span>
+            // check if collector item exists and is disabled.
+<span class="fc" id="L309">            CollectorItem item = collectorItemRepository.findRepoByUrlAndBranch(collector.getId(),</span>
+<span class="fc" id="L310">                    repoBranch.getBranch(), repoBranch.getUrl());</span>
+<span class="fc bfc" id="L311" title="All 2 branches covered.">            if (item == null) {</span>
+<span class="fc" id="L312">                item = new CollectorItem();</span>
+<span class="fc" id="L313">                item.setCollectorId(collector.getId());</span>
+<span class="fc" id="L314">                item.getOptions().put(&quot;branch&quot;, repoBranch.getBranch());</span>
+<span class="fc" id="L315">                item.getOptions().put(&quot;url&quot;, repoBranch.getUrl());</span>
+<span class="fc" id="L316">                item.setEnabled(true);</span>
+<span class="fc" id="L317">                item.setLastUpdated(0);</span>
+<span class="fc" id="L318">                collectorItemRepository.save(item);</span>
+<span class="pc bpc" id="L319" title="1 of 2 branches missed.">            } else if (!item.isEnabled()) {</span>
+<span class="fc" id="L320">                item.setEnabled(true);</span>
+<span class="fc" id="L321">                item.setLastUpdated(0);</span>
+<span class="fc" id="L322">                collectorItemRepository.save(item);</span>
+            }
+        }
+<span class="fc" id="L325">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

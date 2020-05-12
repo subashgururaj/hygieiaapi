@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FeatureController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.rest</a> &gt; <span class="el_source">FeatureController.java</span></div><h1>FeatureController.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.rest;
+
+import com.capitalone.dashboard.model.DataResponse;
+import com.capitalone.dashboard.model.Feature;
+import com.capitalone.dashboard.model.SprintEstimate;
+import com.capitalone.dashboard.service.FeatureService;
+import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+import java.util.Optional;
+
+import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
+import static org.springframework.web.bind.annotation.RequestMethod.GET;
+
+/**
+ * REST service managing all requests to the feature repository.
+ *
+ * @author KFK884
+ *
+ */
+@RestController
+public class FeatureController {
+	private final FeatureService featureService;
+
+	@Autowired
+<span class="fc" id="L31">	public FeatureController(FeatureService featureService) {</span>
+<span class="fc" id="L32">		this.featureService = featureService;</span>
+<span class="fc" id="L33">	}</span>
+
+	/**
+	 * REST endpoint for retrieving all features for a given sprint and team
+	 * (the sprint is derived)
+	 *
+	 * @param teamId
+	 *            A given scope-owner's source-system ID
+	 * @return A data response list of type Feature containing all features for
+	 *         the given team and current sprint
+	 */
+	@RequestMapping(value = &quot;/feature&quot;, method = GET, produces = APPLICATION_JSON_VALUE)
+	public DataResponse&lt;List&lt;Feature&gt;&gt; relevantStories(
+	        @RequestParam(value = &quot;projectId&quot;, required = true) String projectId,
+			@RequestParam(value = &quot;agileType&quot;, required = false) Optional&lt;String&gt; agileType,
+			@RequestParam(value = &quot;component&quot;, required = true) String cId,
+			@RequestParam(value = &quot;teamId&quot;, required = true) String teamId) {
+<span class="fc" id="L50">		ObjectId componentId = new ObjectId(cId);</span>
+<span class="fc" id="L51">		return this.featureService.getRelevantStories(componentId, teamId, projectId, agileType);</span>
+	}
+
+	/**
+	 * REST endpoint for retrieving all features for a given sprint and team
+	 * (the sprint is derived)
+	 *
+	 * @return A data response list of type Feature containing all features for
+	 *         the given team and current sprint
+	 */
+	@RequestMapping(value = &quot;/feature/{number}&quot;, method = GET, produces = APPLICATION_JSON_VALUE)
+	public DataResponse&lt;List&lt;Feature&gt;&gt; story(
+			@RequestParam(value = &quot;component&quot;, required = true) String cId,
+			@PathVariable(value = &quot;number&quot;) String storyNumber) {
+<span class="nc" id="L65">		ObjectId componentId = new ObjectId(cId);</span>
+<span class="nc" id="L66">		return this.featureService.getStory(componentId, storyNumber);</span>
+	}
+
+	/**
+	 * REST endpoint for retrieving the current sprint detail for a team
+	 *
+	 * @param teamId
+	 *            A given scope-owner's source-system ID
+	 * @return A response list of type Feature containing the done estimate of
+	 *         current features
+	 */
+	@RequestMapping(value = &quot;/iteration&quot;, method = GET, produces = APPLICATION_JSON_VALUE)
+	public DataResponse&lt;List&lt;Feature&gt;&gt; currentSprintDetail(
+	        @RequestParam(value = &quot;projectId&quot;, required = true) String projectId,
+			@RequestParam(value = &quot;agileType&quot;, required = false) Optional&lt;String&gt; agileType,
+			@RequestParam(value = &quot;component&quot;, required = true) String cId,
+			@RequestParam(value = &quot;teamId&quot;, required = true) String teamId) {
+<span class="nc" id="L83">		ObjectId componentId = new ObjectId(cId);</span>
+<span class="nc" id="L84">		return this.featureService.getCurrentSprintDetail(componentId, teamId, projectId, agileType);</span>
+	}
+
+	/**
+	 * REST endpoint for retrieving only the unique super features for a given
+	 * team and sprint and their related estimates
+	 *
+	 * @param teamId
+	 *            A given scope-owner's source-system ID
+	 * @return A response list of type Feature containing the unique features
+	 *         plus their sub features' estimates associated to the current
+	 *         sprint and team
+	 */
+	@RequestMapping(value = &quot;/feature/estimates/super&quot;, method = GET, produces = APPLICATION_JSON_VALUE)
+	public DataResponse&lt;List&lt;Feature&gt;&gt; featureEpics(
+	        @RequestParam(value = &quot;projectId&quot;, required = true) String projectId,
+			@RequestParam(value = &quot;agileType&quot;, required = false) Optional&lt;String&gt; agileType,
+			@RequestParam(value = &quot;estimateMetricType&quot;, required = false) Optional&lt;String&gt; estimateMetricType,
+			@RequestParam(value = &quot;component&quot;, required = true) String cId,
+			@RequestParam(value = &quot;teamId&quot;, required = true) String teamId) {
+<span class="fc" id="L104">		ObjectId componentId = new ObjectId(cId);</span>
+<span class="fc" id="L105">		return this.featureService.getFeatureEpicEstimates(componentId, teamId, projectId, agileType, estimateMetricType);</span>
+	}
+	
+	/**
+	 * REST endpoint for retrieving the current sprint estimates for a team
+	 *
+	 * @param teamId
+	 *            A given scope-owner's source-system ID
+	 * @return 
+	 */
+	@RequestMapping(value = &quot;/feature/estimates/aggregatedsprints&quot;, method = GET, produces = APPLICATION_JSON_VALUE)
+	public DataResponse&lt;SprintEstimate&gt; featureAggregatedSprintEstimates (
+	        @RequestParam(value = &quot;projectId&quot;, required = true) String projectId,
+			@RequestParam(value = &quot;agileType&quot;, required = false) Optional&lt;String&gt; agileType,
+			@RequestParam(value = &quot;estimateMetricType&quot;, required = false) Optional&lt;String&gt; estimateMetricType,
+			@RequestParam(value = &quot;component&quot;, required = true) String cId,
+			@RequestParam(value = &quot;teamId&quot;, required = true) String teamId) {
+<span class="nc" id="L122">		ObjectId componentId = new ObjectId(cId);</span>
+<span class="nc" id="L123">		return this.featureService.getAggregatedSprintEstimates(componentId, teamId, projectId, agileType, estimateMetricType);</span>
+	}
+
+	/**
+	 * REST endpoint for retrieving the current total estimate for a team and
+	 * sprint
+	 *
+	 * @param teamId
+	 *            A given scope-owner's source-system ID
+	 * @return A response list of type Feature containing the total estimate of
+	 *         current features
+	 */
+	@RequestMapping(value = &quot;/feature/estimates/total/{teamId}&quot;, method = GET, produces = APPLICATION_JSON_VALUE)
+	@Deprecated
+	public DataResponse&lt;List&lt;Feature&gt;&gt; featureTotalEstimate(
+			@RequestParam(value = &quot;agileType&quot;, required = false) Optional&lt;String&gt; agileType,
+			@RequestParam(value = &quot;estimateMetricType&quot;, required = false) Optional&lt;String&gt; estimateMetricType,
+			@RequestParam(value = &quot;component&quot;, required = true) String cId,
+			@PathVariable String teamId) {
+<span class="nc" id="L142">		ObjectId componentId = new ObjectId(cId);</span>
+<span class="nc" id="L143">		return this.featureService.getTotalEstimate(componentId, teamId, agileType, estimateMetricType);</span>
+	}
+
+	/**
+	 * REST endpoint for retrieving the current in-progress estimate for a team
+	 * and sprint
+	 *
+	 * @param teamId
+	 *            A given scope-owner's source-system ID
+	 * @return A response list of type Feature containing the in-progress
+	 *         estimate of current features
+	 */
+	@RequestMapping(value = &quot;/feature/estimates/wip/{teamId}&quot;, method = GET, produces = APPLICATION_JSON_VALUE)
+	@Deprecated
+	public DataResponse&lt;List&lt;Feature&gt;&gt; featureInProgressEstimate(
+			@RequestParam(value = &quot;agileType&quot;, required = false) Optional&lt;String&gt; agileType,
+			@RequestParam(value = &quot;estimateMetricType&quot;, required = false) Optional&lt;String&gt; estimateMetricType,
+			@RequestParam(value = &quot;component&quot;, required = true) String cId,
+			@PathVariable String teamId) {
+<span class="nc" id="L162">		ObjectId componentId = new ObjectId(cId);</span>
+<span class="nc" id="L163">		return this.featureService.getInProgressEstimate(componentId, teamId, agileType, estimateMetricType);</span>
+	}
+
+	/**
+	 * REST endpoint for retrieving the current done estimate for a team and
+	 * sprint
+	 *
+	 * @param teamId
+	 *            A given scope-owner's source-system ID
+	 * @return A response list of type Feature containing the done estimate of
+	 *         current features
+	 */
+	@RequestMapping(value = &quot;/feature/estimates/done/{teamId}&quot;, method = GET, produces = APPLICATION_JSON_VALUE)
+	@Deprecated
+	public DataResponse&lt;List&lt;Feature&gt;&gt; featureDoneEstimate(
+			@RequestParam(value = &quot;agileType&quot;, required = false) Optional&lt;String&gt; agileType,
+			@RequestParam(value = &quot;estimateMetricType&quot;, required = false) Optional&lt;String&gt; estimateMetricType,
+			@RequestParam(value = &quot;component&quot;, required = true) String cId,
+			@PathVariable String teamId) {
+<span class="nc" id="L182">		ObjectId componentId = new ObjectId(cId);</span>
+<span class="nc" id="L183">		return this.featureService.getDoneEstimate(componentId, teamId, agileType, estimateMetricType);</span>
+	}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

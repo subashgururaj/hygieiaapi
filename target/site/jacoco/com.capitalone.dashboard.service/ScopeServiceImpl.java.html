@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ScopeServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.service</a> &gt; <span class="el_source">ScopeServiceImpl.java</span></div><h1>ScopeServiceImpl.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.service;
+
+import com.capitalone.dashboard.model.*;
+import com.capitalone.dashboard.repository.CollectorRepository;
+import com.capitalone.dashboard.repository.ComponentRepository;
+import com.capitalone.dashboard.repository.ScopeRepository;
+import com.mysema.query.BooleanBuilder;
+
+import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service
+public class ScopeServiceImpl implements ScopeService {
+
+	private final ComponentRepository componentRepository;
+	private final ScopeRepository scopeRepository;
+	private final CollectorRepository collectorRepository;
+
+	/**
+	 * Default autowired constructor for repositories
+	 * 
+	 * @param componentRepository
+	 *            Repository containing components used by the UI (populated by
+	 *            UI)
+	 * @param collectorRepository
+	 *            Repository containing all registered collectors
+	 * @param scopeRepository
+	 *            Repository containing all scopes
+	 */
+	@Autowired
+	public ScopeServiceImpl(ComponentRepository componentRepository,
+			CollectorRepository collectorRepository,
+<span class="fc" id="L38">			ScopeRepository scopeRepository) {</span>
+<span class="fc" id="L39">		this.componentRepository = componentRepository;</span>
+<span class="fc" id="L40">		this.scopeRepository = scopeRepository;</span>
+<span class="fc" id="L41">		this.collectorRepository = collectorRepository;</span>
+<span class="fc" id="L42">	}</span>
+
+	/**
+	 * Retrieves all unique scopes
+	 * 
+	 * @return A data response list of type Scope containing all unique scopes
+	 */
+	@Override
+	public List&lt;Scope&gt; getAllScopes() {
+		// Get all available scopes
+<span class="nc" id="L52">		List&lt;Scope&gt; scopes = scopeRepository.findByOrderByProjectPathDesc();</span>
+
+<span class="nc bnc" id="L54" title="All 2 branches missed.">		for (Scope scope : scopes) {</span>
+<span class="nc" id="L55">		    Collector collector = collectorRepository</span>
+<span class="nc" id="L56">				.findOne(scope.getCollectorId());</span>
+<span class="nc" id="L57">		    scope.setCollector(collector);</span>
+<span class="nc" id="L58">		}</span>
+
+<span class="nc" id="L60">		return scopes;</span>
+	}
+
+	/**
+	 * Retrieves the scope information for a given scope source system ID
+	 * 
+	 * @param componentId
+	 *            The ID of the related UI component that will reference
+	 *            collector item content from this collector
+	 * @param scopeId
+	 *            A given scope's source-system ID
+	 * 
+	 * @return A data response list of type Scope containing all data for a
+	 *         given scope source-system ID
+	 */
+	@Override
+	public DataResponse&lt;List&lt;Scope&gt;&gt; getScope(ObjectId componentId,
+			String scopeId) {
+<span class="nc" id="L78">		Component component = componentRepository.findOne(componentId);</span>
+<span class="nc" id="L79">		CollectorItem item = component.getCollectorItems()</span>
+<span class="nc" id="L80">				.get(CollectorType.AgileTool).get(0);</span>
+<span class="nc" id="L81">		QScopeOwner team = new QScopeOwner(&quot;team&quot;);</span>
+<span class="nc" id="L82">		BooleanBuilder builder = new BooleanBuilder();</span>
+
+<span class="nc" id="L84">		builder.and(team.collectorItemId.eq(item.getId()));</span>
+
+		// Get one scope by Id
+<span class="nc" id="L87">		List&lt;Scope&gt; scope = scopeRepository.getScopeById(scopeId);</span>
+
+<span class="nc" id="L89">		Collector collector = collectorRepository</span>
+<span class="nc" id="L90">				.findOne(item.getCollectorId());</span>
+
+<span class="nc" id="L92">		return new DataResponse&lt;&gt;(scope, collector.getLastExecuted());</span>
+	}
+
+	/**
+	 * Retrieves the scope information for a given scope source system ID
+	 *
+	 * @param collectorId
+	 *
+	 * @return projects
+	 */
+	@Override
+	public List&lt;Scope&gt;  getScopesByCollector(ObjectId collectorId) {
+<span class="nc" id="L104">		List&lt;Scope&gt; scopes = scopeRepository.findByCollectorId(collectorId);</span>
+
+		//clean up needed for &lt; &gt; characters
+<span class="nc bnc" id="L107" title="All 2 branches missed.">		for (Scope scope : scopes) {</span>
+<span class="nc" id="L108">			scope.setName(  scope.getName().replaceAll(&quot;[&lt;&gt;]&quot;, &quot;&quot;)  );</span>
+<span class="nc" id="L109">			scope.setProjectPath(  scope.getProjectPath().replaceAll(&quot;[&lt;&gt;]&quot;, &quot;&quot;)  );</span>
+<span class="nc" id="L110">		}</span>
+
+<span class="nc" id="L112">		return scopes;</span>
+	}
+
+	/**
+	 * Finds paged results of scope items of a given collectorId, projectName, pageable
+	 *
+	 * @param  collectorId
+	 * @param {@link org.springframework.data.domain.Pageable} object to determine which page to return
+	 * @return scope items matching the specified type
+	 */
+	@Override
+	public Page&lt;Scope&gt; getScopeByCollectorWithFilter(ObjectId collectorId, String projectName, Pageable pageable){
+
+<span class="nc" id="L125">		Page&lt;Scope&gt; scopeItems =  scopeRepository.findAllByCollectorIdAndNameContainingIgnoreCase(collectorId,projectName,pageable);</span>
+<span class="nc" id="L126">		return scopeItems;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

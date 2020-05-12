@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ServiceServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.service</a> &gt; <span class="el_source">ServiceServiceImpl.java</span></div><h1>ServiceServiceImpl.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.service;
+
+import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLConnection;
+import java.util.List;
+
+import org.bson.types.ObjectId;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import com.capitalone.dashboard.model.Dashboard;
+import com.capitalone.dashboard.model.Service;
+import com.capitalone.dashboard.model.ServiceStatus;
+import com.capitalone.dashboard.model.monitor.MonitorService;
+import com.capitalone.dashboard.repository.DashboardRepository;
+import com.capitalone.dashboard.repository.ServiceRepository;
+import com.capitalone.dashboard.util.URLConnectionFactory;
+
+
+@org.springframework.stereotype.Service
+public class ServiceServiceImpl implements ServiceService {
+
+<span class="fc" id="L26">    private static final Logger LOGGER = LoggerFactory.getLogger(ServiceServiceImpl.class);</span>
+    private final URLConnectionFactory urlConnectionFactory;
+    private final ServiceRepository serviceRepository;
+    private final DashboardRepository dashboardRepository;
+
+    @Autowired
+<span class="fc" id="L32">    public ServiceServiceImpl(URLConnectionFactory urlConnectionFactory, ServiceRepository serviceRepository, DashboardRepository dashboardRepository) {</span>
+<span class="fc" id="L33">        this.urlConnectionFactory = urlConnectionFactory;</span>
+<span class="fc" id="L34">    	this.serviceRepository = serviceRepository;</span>
+<span class="fc" id="L35">        this.dashboardRepository = dashboardRepository;</span>
+<span class="fc" id="L36">    }</span>
+
+    @Override
+    public Iterable&lt;Service&gt; all() {
+<span class="fc" id="L40">        return serviceRepository.findAll();</span>
+    }
+
+    @Override
+    public List&lt;Service&gt; dashboardServices(ObjectId dashboardId) {
+<span class="fc" id="L45">        return serviceRepository.findByDashboardId(dashboardId);</span>
+    }
+
+    @Override
+    public List&lt;Service&gt; dashboardDependentServices(ObjectId dashboardId) {
+<span class="fc" id="L50">        return serviceRepository.findByDependedBy(dashboardId);</span>
+    }
+
+    @Override
+    public Service get(ObjectId id) {
+<span class="fc" id="L55">        return serviceRepository.findOne(id);</span>
+    }
+
+    @Override
+    public Service create(ObjectId dashboardId, String name, String url) {
+<span class="fc" id="L60">        Service service = new Service();</span>
+<span class="fc" id="L61">        service.setName(name);</span>
+<span class="fc" id="L62">        service.setUrl(url);</span>
+<span class="fc" id="L63">        service.setDashboardId(dashboardId);</span>
+<span class="fc" id="L64">        service.setStatus(ServiceStatus.Warning);</span>
+<span class="fc" id="L65">        service.setLastUpdated(System.currentTimeMillis());</span>
+<span class="fc" id="L66">        Dashboard dashboard = dashboardRepository.findOne(dashboardId);</span>
+<span class="fc" id="L67">        service.setApplicationName(dashboard.getApplication().getName());</span>
+<span class="fc" id="L68">        return serviceRepository.save(service);</span>
+    }
+
+    @Override
+    public Service update(ObjectId dashboardId, Service service) {
+<span class="pc bpc" id="L73" title="1 of 2 branches missed.">        if (!service.getDashboardId().equals(dashboardId)) {</span>
+<span class="nc" id="L74">            throw new IllegalStateException(&quot;Not allowed to update this service from this dashboard!&quot;);</span>
+        }
+<span class="fc" id="L76">        service.setStatus(getServiceStatus(service.getUrl(), dashboardId));</span>
+<span class="fc" id="L77">        service.setDashboardId(dashboardId);</span>
+<span class="fc" id="L78">        service.setLastUpdated(System.currentTimeMillis());</span>
+<span class="fc" id="L79">        return serviceRepository.save(service);</span>
+    }
+
+    @Override
+    public void delete(ObjectId dashboardId, ObjectId serviceId) {
+<span class="fc" id="L84">        Service service = get(serviceId);</span>
+<span class="pc bpc" id="L85" title="1 of 2 branches missed.">        if (!service.getDashboardId().equals(dashboardId)) {</span>
+<span class="nc" id="L86">            throw new IllegalStateException(&quot;Not allowed to delete this service from this dashboard!&quot;);</span>
+        }
+<span class="fc" id="L88">        serviceRepository.delete(service);</span>
+<span class="fc" id="L89">    }</span>
+
+    @Override
+    public Service addDependentService(ObjectId dashboardId, ObjectId serviceId) {
+<span class="fc" id="L93">        Service service = get(serviceId);</span>
+<span class="pc bpc" id="L94" title="1 of 2 branches missed.">        if (service.getDashboardId().equals(dashboardId)) {</span>
+<span class="nc" id="L95">            throw new IllegalStateException(&quot;Not allowed to add service owned by dashboard to dependent service!&quot;);</span>
+        }
+<span class="fc" id="L97">        service.getDependedBy().add(dashboardId);</span>
+<span class="fc" id="L98">        return serviceRepository.save(service);</span>
+    }
+
+    @Override
+    public void deleteDependentService(ObjectId dashboardId, ObjectId serviceId) {
+<span class="fc" id="L103">        Service service = get(serviceId);</span>
+<span class="fc" id="L104">        service.getDependedBy().remove(dashboardId);</span>
+<span class="fc" id="L105">        serviceRepository.save(service);</span>
+<span class="fc" id="L106">    }</span>
+
+    @Override
+    public void refreshService(ObjectId dashboardId, ObjectId serviceId) {
+<span class="nc" id="L110">        Service service = get(serviceId);</span>
+<span class="nc" id="L111">        LOGGER.debug(&quot;URL is :&quot; + service.getUrl());</span>
+<span class="nc" id="L112">        service.setDashboardId(dashboardId);</span>
+<span class="nc" id="L113">        service.setStatus(getServiceStatus(service.getUrl(), dashboardId));</span>
+<span class="nc" id="L114">        service.setLastUpdated(System.currentTimeMillis());</span>
+<span class="nc" id="L115">        Dashboard dashboard = dashboardRepository.findOne(dashboardId);</span>
+<span class="nc" id="L116">        service.setApplicationName(dashboard.getApplication().getName());</span>
+<span class="nc" id="L117">        serviceRepository.save(service);</span>
+<span class="nc" id="L118">    }</span>
+
+    private ServiceStatus getServiceStatus(String url, ObjectId dashboardId) {
+<span class="fc" id="L121">    	URLConnection connection = getUrlConnection(url);</span>
+    	
+<span class="pc bpc" id="L123" title="1 of 2 branches missed.">    	if(connection == null) {</span>
+<span class="nc" id="L124">    		return ServiceStatus.Alert;</span>
+    	}
+    	
+<span class="fc" id="L127">    	return new MonitorService((HttpURLConnection) connection, dashboardId).getServiceStatus();</span>
+	}
+
+	private HttpURLConnection getUrlConnection(String url) {
+    	try {
+<span class="fc" id="L132">			return urlConnectionFactory.get(new URL(url));</span>
+<span class="nc" id="L133">		} catch (IOException e) {</span>
+<span class="nc" id="L134">			LOGGER.error(e.getMessage());</span>
+		}
+    	
+<span class="nc" id="L137">    	return null;</span>
+	}
+    
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

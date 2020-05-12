@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MetadataServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.service</a> &gt; <span class="el_source">MetadataServiceImpl.java</span></div><h1>MetadataServiceImpl.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.service;
+
+import com.capitalone.dashboard.misc.HygieiaException;
+import com.capitalone.dashboard.model.Dashboard;
+import com.capitalone.dashboard.model.DataResponse;
+import com.capitalone.dashboard.model.Metadata;
+import com.capitalone.dashboard.repository.CustomRepositoryQuery;
+import com.capitalone.dashboard.repository.MetadataRepository;
+import com.capitalone.dashboard.request.MetadataCreateRequest;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.commons.lang3.exception.ExceptionUtils;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+
+@Service
+public class MetadataServiceImpl implements MetadataService {
+
+<span class="fc" id="L27">    private static final Logger LOGGER = LoggerFactory.getLogger(MetadataServiceImpl.class);</span>
+
+    private final MetadataRepository metadataRepository;
+
+    private final CustomRepositoryQuery customRepositoryQuery;
+
+    @Autowired
+<span class="fc" id="L34">    public MetadataServiceImpl(MetadataRepository metadataRepository, CustomRepositoryQuery customRepositoryQuery) {</span>
+<span class="fc" id="L35">        this.metadataRepository = metadataRepository;</span>
+<span class="fc" id="L36">        this.customRepositoryQuery = customRepositoryQuery;</span>
+<span class="fc" id="L37">    }</span>
+
+    @Override
+    public String create(MetadataCreateRequest request) throws HygieiaException {
+<span class="fc" id="L41">        final String METHOD_NAME = &quot;MetdataService.create() : &quot;;</span>
+<span class="fc" id="L42">        LOGGER.info(METHOD_NAME + &quot; Enter&quot;);</span>
+<span class="fc" id="L43">        Metadata entity = new Metadata();</span>
+<span class="fc" id="L44">        entity.setKey(request.getKey());</span>
+<span class="fc" id="L45">        entity.setSource(request.getSource());</span>
+<span class="fc" id="L46">        entity.setType(request.getType());</span>
+        // check if the raw data is a valid
+        JSONObject jsonObject;
+        try {
+<span class="fc" id="L50">            jsonObject = (JSONObject) new JSONParser().parse(new ObjectMapper().writeValueAsString(request.getRawData()));</span>
+
+
+<span class="fc" id="L53">        } catch (Exception e) {</span>
+<span class="fc" id="L54">            LOGGER.error(METHOD_NAME + ExceptionUtils.getStackTrace(e));</span>
+<span class="fc" id="L55">            throw new HygieiaException(&quot;rawData is malformed JSON. Error is : &quot;+ e.getMessage(), HygieiaException.JSON_FORMAT_ERROR);</span>
+<span class="fc" id="L56">        }</span>
+
+<span class="fc" id="L58">        entity.setRawData(jsonObject);</span>
+<span class="fc" id="L59">        entity = metadataRepository.save(entity);</span>
+<span class="fc" id="L60">        LOGGER.info(METHOD_NAME + &quot; Exit&quot;);</span>
+<span class="fc" id="L61">        return entity.getId().toString();</span>
+    }
+
+
+
+
+    @Override
+    public DataResponse&lt;Iterable&lt;Metadata&gt;&gt; search(String searchKey, String value) {
+<span class="nc" id="L69">        long start = System.currentTimeMillis();</span>
+<span class="nc" id="L70">        Iterable&lt;Metadata&gt; mts = customRepositoryQuery.findAllMetaDataBySearchQuery(searchKey,value);</span>
+<span class="nc" id="L71">        long end = System.currentTimeMillis();</span>
+<span class="nc" id="L72">        LOGGER.info(&quot;MetadataService.search::&quot;+ &quot;searchkey &gt;&gt; &quot;+searchKey+&quot;=&quot;+value+&quot; Duration: &quot;+(end-start)+&quot; millis&quot;);</span>
+<span class="nc" id="L73">        return new DataResponse(mts, System.currentTimeMillis());</span>
+
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

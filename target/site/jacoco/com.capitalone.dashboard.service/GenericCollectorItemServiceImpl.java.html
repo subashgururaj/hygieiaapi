@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GenericCollectorItemServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.service</a> &gt; <span class="el_source">GenericCollectorItemServiceImpl.java</span></div><h1>GenericCollectorItemServiceImpl.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.service;
+
+import com.capitalone.dashboard.misc.HygieiaException;
+import com.capitalone.dashboard.model.BinaryArtifact;
+import com.capitalone.dashboard.model.Build;
+import com.capitalone.dashboard.model.Collector;
+import com.capitalone.dashboard.model.CollectorItem;
+import com.capitalone.dashboard.model.GenericCollectorItem;
+import com.capitalone.dashboard.repository.BinaryArtifactRepository;
+import com.capitalone.dashboard.repository.BuildRepository;
+import com.capitalone.dashboard.repository.CollectorItemRepository;
+import com.capitalone.dashboard.repository.CollectorRepository;
+import com.capitalone.dashboard.repository.GenericCollectorItemRepository;
+import com.capitalone.dashboard.request.GenericCollectorItemCreateRequest;
+import com.capitalone.dashboard.settings.ApiSettings;
+import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
+@Service
+public class GenericCollectorItemServiceImpl implements GenericCollectorItemService {
+
+    private final GenericCollectorItemRepository genericCollectorItemRepository;
+    private final CollectorRepository collectorRepository;
+    private final BuildRepository buildRepository;
+    private final CollectorItemRepository collectorItemRepository;
+    private final ApiSettings apiSettings;
+    private final BinaryArtifactRepository binaryArtifactRepository;
+    private static final int ARTIFACT_GROUP =1;
+    private static final int ARTIFACT_NAME = 2;
+    private static final int ARTIFACT_VERSION =3;
+
+
+    @Autowired
+    public GenericCollectorItemServiceImpl(GenericCollectorItemRepository genericCollectorItemRepository, CollectorRepository collectorRepository,BuildRepository buildRepository, CollectorItemRepository collectorItemRepository,
+<span class="fc" id="L44">    BinaryArtifactRepository binaryArtifactRepository, ApiSettings apiSettings) {</span>
+<span class="fc" id="L45">        this.genericCollectorItemRepository = genericCollectorItemRepository;</span>
+<span class="fc" id="L46">        this.collectorRepository = collectorRepository;</span>
+<span class="fc" id="L47">        this.buildRepository = buildRepository;</span>
+<span class="fc" id="L48">        this.collectorItemRepository = collectorItemRepository;</span>
+<span class="fc" id="L49">        this.binaryArtifactRepository = binaryArtifactRepository;</span>
+<span class="fc" id="L50">        this.apiSettings = apiSettings;</span>
+<span class="fc" id="L51">    }</span>
+
+    @Override
+    public String create(GenericCollectorItemCreateRequest request) throws HygieiaException {
+<span class="fc" id="L55">        Collector collector = collectorRepository.findByName(request.getToolName());</span>
+<span class="fc bfc" id="L56" title="All 2 branches covered.">        if (collector == null) {</span>
+<span class="fc" id="L57">            throw new HygieiaException(&quot;No collector for tool name &quot; + request.getToolName(), HygieiaException.BAD_DATA);</span>
+        }
+
+<span class="fc" id="L60">        GenericCollectorItem item = genericCollectorItemRepository.findByToolNameAndRawDataAndRelatedCollectorItem(request.getToolName(), request.getRawData(), new ObjectId(request.getRelatedCollectorItemId()));</span>
+
+<span class="fc bfc" id="L62" title="All 2 branches covered.">        if(item == null) {</span>
+<span class="fc" id="L63">            item = new GenericCollectorItem();</span>
+<span class="fc" id="L64">            item.setCreationTime(System.currentTimeMillis());</span>
+<span class="fc" id="L65">            item.setRawData(request.getRawData());</span>
+<span class="fc" id="L66">            item.setToolName(request.getToolName());</span>
+        }
+
+<span class="fc" id="L69">        item.setCollectorId(collector.getId());</span>
+<span class="fc" id="L70">        item.setSource(request.getSource());</span>
+<span class="fc" id="L71">        item.setProcessTime(0);</span>
+        try {
+<span class="fc" id="L73">            item.setRelatedCollectorItem(new ObjectId(request.getRelatedCollectorItemId()));</span>
+<span class="fc" id="L74">            item.setBuildId(new ObjectId(request.getBuildId()));</span>
+<span class="fc" id="L75">        } catch (IllegalArgumentException ie) {</span>
+<span class="fc" id="L76">            throw new HygieiaException(&quot;Bad relatedItemId: &quot; + ie.getMessage(), HygieiaException.BAD_DATA);</span>
+<span class="fc" id="L77">        }</span>
+
+<span class="pc bpc" id="L79" title="1 of 2 branches missed.">        if(&quot;Artifactory&quot;.equalsIgnoreCase(request.getToolName())){</span>
+<span class="nc" id="L80">            createGenericBinaryArtifactData(request);</span>
+        }
+
+<span class="fc" id="L83">        item = genericCollectorItemRepository.save(item);</span>
+<span class="fc" id="L84">        return item.getId().toString();</span>
+    }
+
+
+    @Override
+    public String createGenericBinaryArtifactData(GenericCollectorItemCreateRequest request){
+<span class="nc" id="L90">        ObjectId id = new ObjectId(request.getBuildId());</span>
+<span class="nc" id="L91">        Build currentBuild = buildRepository.findOne(id);</span>
+<span class="nc" id="L92">        String artifactName = captureArtifactAttributes(apiSettings.getCapturePattern(),request.getRawData(),ARTIFACT_NAME);</span>
+<span class="nc" id="L93">        String artifactVersion = captureArtifactAttributes(apiSettings.getCapturePattern(),request.getRawData(),ARTIFACT_VERSION);</span>
+<span class="nc" id="L94">        String artifactGroupId = captureArtifactAttributes(apiSettings.getCapturePattern(),request.getRawData(),ARTIFACT_GROUP);</span>
+<span class="nc" id="L95">        String path = artifactGroupId+&quot;/&quot;+artifactName;</span>
+<span class="nc" id="L96">        List&lt;CollectorItem&gt; artifactCollectorItems = collectorItemRepository.findByArtifactNameAndPath(artifactName,path);</span>
+<span class="nc bnc" id="L97" title="All 2 branches missed.">        List&lt;ObjectId&gt; artifactCollectorItemIds = !CollectionUtils.isEmpty(artifactCollectorItems)?artifactCollectorItems.stream().map(CollectorItem::getId).collect(Collectors.toList()):new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L98">        List&lt;BinaryArtifact&gt; genericBinaryArtifacts = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L99" title="All 2 branches missed.">        for (ObjectId item:artifactCollectorItemIds) {</span>
+<span class="nc" id="L100">            BinaryArtifact gba = createGenericBinaryArtifact(artifactName,artifactVersion,item,currentBuild);</span>
+<span class="nc" id="L101">            gba = binaryArtifactRepository.save(gba);</span>
+<span class="nc" id="L102">            genericBinaryArtifacts.add(gba);</span>
+<span class="nc" id="L103">        }</span>
+<span class="nc" id="L104">        return genericBinaryArtifacts.stream().map(BinaryArtifact::getId).toString();</span>
+    }
+
+    private String captureArtifactAttributes(String capturePattern, String rawData,int group) {
+<span class="nc" id="L108">        List&lt;String&gt; regex = Arrays.asList(capturePattern);</span>
+<span class="nc" id="L109">        return regex</span>
+<span class="nc" id="L110">                .stream().map(Pattern::compile)</span>
+<span class="nc" id="L111">                .map(p -&gt; p.matcher(rawData))</span>
+<span class="nc" id="L112">                .filter(Matcher::find)</span>
+<span class="nc" id="L113">                .findFirst()</span>
+<span class="nc" id="L114">                .map(match -&gt; match.group(group))</span>
+<span class="nc" id="L115">                .orElse(&quot;&quot;);</span>
+    }
+
+    private BinaryArtifact createGenericBinaryArtifact(String artifactName, String artifactVersion,ObjectId artifactCollectorItemId,Build build){
+<span class="nc" id="L119">        BinaryArtifact generic = new BinaryArtifact();</span>
+<span class="nc" id="L120">        generic.setArtifactVersion(artifactVersion);</span>
+<span class="nc" id="L121">        generic.setArtifactName(artifactName);</span>
+<span class="nc" id="L122">        generic.setCollectorItemId(artifactCollectorItemId);</span>
+<span class="nc" id="L123">        generic.setTimestamp(System.currentTimeMillis());</span>
+<span class="nc" id="L124">        generic.addBuild(build);</span>
+<span class="nc" id="L125">        return generic;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

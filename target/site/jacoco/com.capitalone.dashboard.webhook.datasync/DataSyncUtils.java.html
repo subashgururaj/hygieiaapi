@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DataSyncUtils.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.webhook.datasync</a> &gt; <span class="el_source">DataSyncUtils.java</span></div><h1>DataSyncUtils.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.webhook.datasync;
+
+import com.capitalone.dashboard.model.Collector;
+import com.capitalone.dashboard.model.CollectorItem;
+import com.capitalone.dashboard.model.CollectorType;
+import com.capitalone.dashboard.model.Component;
+import com.capitalone.dashboard.request.DataSyncResponse;
+import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections.MapUtils;
+import org.apache.commons.collections4.IterableUtils;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
+
+public class DataSyncUtils {
+
+    private DataSyncServiceImpl dataSyncServiceImpl;
+    private static final int MAX_PAGE_SIZE = 500;
+    private static final int ZERO = 0;
+
+
+<span class="fc" id="L34">    private static final Log LOG = LogFactory.getLog(DataSyncUtils.class);</span>
+
+<span class="fc" id="L36">    public DataSyncUtils(DataSyncServiceImpl dataSyncServiceImpl) {</span>
+<span class="fc" id="L37">        this.dataSyncServiceImpl = dataSyncServiceImpl;</span>
+<span class="fc" id="L38">    }</span>
+
+    public int pages(Collector collector) {
+<span class="fc" id="L41">        Page&lt;CollectorItem&gt; collectorItemsPage = dataSyncServiceImpl.getCollectorItemRepository().findByCollectorIdIn(Collections.singleton(collector.getId()), new PageRequest(MAX_PAGE_SIZE, MAX_PAGE_SIZE));</span>
+<span class="pc bpc" id="L42" title="1 of 2 branches missed.">        if (Objects.isNull(collectorItemsPage)) return ZERO;</span>
+<span class="fc" id="L43">        return collectorItemsPage.getTotalPages();</span>
+    }
+
+    public List&lt;CollectorItem&gt; getAllCollectorItems(Collector collector, int total) {
+<span class="fc" id="L47">        LOG.info(&quot;starting - collecting collector items&quot;);</span>
+<span class="fc" id="L48">        List&lt;CollectorItem&gt; collectorItems = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L49">        IntStream.range(ZERO, total).forEach(idx -&gt; {</span>
+<span class="fc" id="L50">            Page&lt;CollectorItem&gt; collectorItemsPage = dataSyncServiceImpl.getCollectorItemRepository().findByCollectorIdIn(Collections.singleton(collector.getId()), new PageRequest(idx, MAX_PAGE_SIZE));</span>
+<span class="fc" id="L51">            collectorItems.addAll(collectorItemsPage.getContent());</span>
+<span class="fc" id="L52">            LOG.info(&quot;completed &quot; + idx + &quot; run&quot;);</span>
+<span class="fc" id="L53">        });</span>
+<span class="fc" id="L54">        LOG.info(&quot;Finished collecting collector-items&quot;);</span>
+<span class="fc" id="L55">        return collectorItems;</span>
+    }
+
+    public int updateComponents(Collector collector, List&lt;Component&gt; components, CollectorItem cI, CollectorType collectorType) {
+<span class="fc" id="L59">        return (int) components.stream().peek(component -&gt; {</span>
+<span class="fc" id="L60">            component = updateCollectorItem(component, collectorType, cI, collector);</span>
+<span class="fc" id="L61">            dataSyncServiceImpl.getComponentRepository().save(component);</span>
+<span class="fc" id="L62">        }).count();</span>
+    }
+
+    public Component updateCollectorItem(Component component, CollectorType collectorType, CollectorItem collectorItem, Collector collector) {
+<span class="fc" id="L66">        Map&lt;CollectorType, List&lt;CollectorItem&gt;&gt; collectorItems = component.getCollectorItems();</span>
+<span class="pc bpc" id="L67" title="1 of 2 branches missed.">        if (MapUtils.isEmpty(collectorItems)) return component;</span>
+<span class="pc bpc" id="L68" title="1 of 2 branches missed.">        if (CollectionUtils.isEmpty(collectorItems.get(collectorType))) return component;</span>
+<span class="fc" id="L69">        List&lt;CollectorItem&gt; existing = new ArrayList&lt;&gt;(collectorItems.get(collectorType));</span>
+<span class="fc" id="L70">        List&lt;CollectorItem&gt; found = matchCollectorItems(existing, collectorItem, collector);</span>
+<span class="fc bfc" id="L71" title="All 2 branches covered.">        if (CollectionUtils.isEmpty(found)) return component;</span>
+<span class="fc" id="L72">        found.stream().forEach(ci -&gt; {</span>
+<span class="fc" id="L73">            existing.remove(ci);</span>
+<span class="fc" id="L74">        });</span>
+<span class="fc" id="L75">        collectorItem.setLastUpdated(System.currentTimeMillis());</span>
+<span class="fc" id="L76">        existing.add(collectorItem);</span>
+<span class="fc" id="L77">        collectorItems.put(collectorType, existing);</span>
+<span class="fc" id="L78">        return component;</span>
+    }
+
+    public Map&lt;String, Object&gt; getUniqueOptions(CollectorItem collectorItem, Map&lt;String, Object&gt; uniqueFields) {
+<span class="fc" id="L82">        return uniqueFields.keySet().stream().collect(Collectors.toMap(idx -&gt; idx, idx -&gt; collectorItem.getOptions().get(idx)));</span>
+    }
+
+    public int clearDuplicateCollectorItemsAndUpdateComponents(List&lt;CollectorItem&gt; collectorItems, int componentCount, Iterable&lt;CollectorItem&gt; suspects, List&lt;Component&gt; components, Collector collector, CollectorType collectorType) {
+<span class="nc" id="L86">        List&lt;CollectorItem&gt; suspectsList = IterableUtils.toList(suspects);</span>
+<span class="nc" id="L87">        suspectsList.sort(Comparator.comparing(CollectorItem::getLastUpdated).reversed());</span>
+<span class="nc" id="L88">        CollectorItem first = suspectsList.stream().findFirst().get();</span>
+<span class="nc" id="L89">        suspectsList.removeIf(sci -&gt; sci.getId().equals(first.getId()));</span>
+<span class="nc" id="L90">        suspectsList.forEach(sci -&gt; {</span>
+<span class="nc" id="L91">            collectorItems.removeIf(cItem -&gt; cItem.getId().equals(sci.getId()));</span>
+<span class="nc" id="L92">            dataSyncServiceImpl.getCollectorItemRepository().delete(sci.getId());</span>
+<span class="nc" id="L93">        });</span>
+<span class="nc bnc" id="L94" title="All 2 branches missed.">        if (CollectionUtils.isEmpty(components)) return componentCount;</span>
+<span class="nc" id="L95">        int componentsUpdated = updateComponents(collector, components, first, collectorType);</span>
+<span class="nc" id="L96">        componentCount += componentsUpdated;</span>
+<span class="nc" id="L97">        return componentCount;</span>
+    }
+
+    private List&lt;CollectorItem&gt; matchCollectorItems(List&lt;CollectorItem&gt; existing, CollectorItem item, Collector collector) {
+<span class="fc" id="L101">        Map&lt;String, Object&gt; uniqueOptions = collector.getUniqueFields();</span>
+<span class="fc" id="L102">        Map&lt;String, Object&gt; itemOptions = collector.getUniqueFields().keySet().stream().collect(Collectors.toMap(idx -&gt; idx, idx -&gt; item.getOptions().get(idx)));</span>
+<span class="fc" id="L103">        return Optional.of(existing).orElse(new ArrayList&lt;&gt;()).stream().filter(ci -&gt; compareMaps(itemOptions, uniqueOptions.keySet().stream().collect(Collectors.toMap(idx -&gt; idx, idx -&gt; ci.getOptions().get(idx)))))</span>
+<span class="fc" id="L104">                .collect(Collectors.toList());</span>
+    }
+
+    private boolean compareMaps(Map&lt;String, Object&gt; incoming, Map&lt;String, Object&gt; existing) {
+<span class="pc bpc" id="L108" title="1 of 2 branches missed.">        if (incoming.size() != existing.size()) return false;</span>
+<span class="fc" id="L109">        return incoming.entrySet().stream().allMatch(e -&gt; e.getValue().equals(existing.get(e.getKey())));</span>
+    }
+
+    public Iterable&lt;CollectorItem&gt; findAllCollectorItemsByOptions(CollectorItem collectorItem,Collector collector){
+<span class="fc" id="L113">        return dataSyncServiceImpl.getCollectorItemRepository().findAllByOptionMapAndCollectorIdsIn(getUniqueOptions(collectorItem, collector.getUniqueFields()), Stream.of(collector.getId()).collect(Collectors.toList()));</span>
+    }
+
+    public List&lt;CollectorItem&gt; deleteCollectorItems(List&lt;CollectorItem&gt; collectorItems, CollectorItem collectorItem,Iterable&lt;CollectorItem&gt; suspects) {
+<span class="fc" id="L117">        List&lt;CollectorItem&gt; suspectCollectorItems = IterableUtils.toList(suspects);</span>
+<span class="fc" id="L118">        suspectCollectorItems.removeIf(cItem -&gt; cItem.getId().equals(collectorItem.getId()));</span>
+<span class="fc" id="L119">        suspectCollectorItems.forEach(colItem -&gt; {</span>
+<span class="fc" id="L120">            collectorItems.removeIf(cItem -&gt; cItem.getId().equals(colItem.getId()));</span>
+<span class="fc" id="L121">            dataSyncServiceImpl.getCollectorItemRepository().delete(colItem.getId());</span>
+<span class="fc" id="L122">        });</span>
+<span class="fc" id="L123">        return suspectCollectorItems;</span>
+    }
+
+    public DataSyncResponse warn(String collectorName, String message){
+<span class="nc" id="L127">        return new DataSyncResponse(new ArrayList&lt;&gt;(),ZERO,message+&quot; &quot;+collectorName);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

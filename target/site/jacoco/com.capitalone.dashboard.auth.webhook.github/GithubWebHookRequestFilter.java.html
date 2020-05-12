@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GithubWebHookRequestFilter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.auth.webhook.github</a> &gt; <span class="el_source">GithubWebHookRequestFilter.java</span></div><h1>GithubWebHookRequestFilter.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.auth.webhook.github;
+
+import com.capitalone.dashboard.auth.AuthenticationResultHandler;
+import com.capitalone.dashboard.settings.ApiSettings;
+import com.capitalone.dashboard.webhook.settings.GitHubWebHookSettings;
+import com.capitalone.dashboard.webhook.settings.WebHookSettings;
+import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+import javax.servlet.FilterChain;
+import javax.servlet.ServletException;
+import javax.servlet.ServletRequest;
+import javax.servlet.ServletResponse;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+
+public class GithubWebHookRequestFilter extends UsernamePasswordAuthenticationFilter {
+
+    private final GithubWebHookAuthService githubWebHookAuthService;
+    private final ApiSettings apiSettings;
+
+<span class="fc" id="L30">    protected boolean authenticated = false; // This is to support the unit tests</span>
+
+    public GithubWebHookRequestFilter(String path, AuthenticationManager authManager,
+                                      GithubWebHookAuthService githubWebHookAuthService,
+                                      ApiSettings apiSettings,
+                                      AuthenticationResultHandler authenticationResultHandler) {
+<span class="fc" id="L36">        super();</span>
+<span class="fc" id="L37">        setAuthenticationManager(authManager);</span>
+<span class="fc" id="L38">        setAuthenticationSuccessHandler(authenticationResultHandler);</span>
+<span class="fc" id="L39">        setFilterProcessesUrl(path);</span>
+<span class="fc" id="L40">        this.githubWebHookAuthService = githubWebHookAuthService;</span>
+<span class="fc" id="L41">        this.apiSettings = apiSettings;</span>
+<span class="fc" id="L42">    }</span>
+
+    public void doFilter(ServletRequest req, ServletResponse res, FilterChain filterChain) throws IOException, ServletException {
+<span class="fc" id="L45">        HttpServletRequest request = (HttpServletRequest)req;</span>
+<span class="fc" id="L46">        HttpServletResponse response = (HttpServletResponse)res;</span>
+
+<span class="fc" id="L48">        String userAgent = request.getHeader(&quot;User-Agent&quot;);</span>
+<span class="fc" id="L49">        String githubEnterpriseHost = request.getHeader(&quot;X-GitHub-Enterprise-Host&quot;);</span>
+
+<span class="fc" id="L51">        WebHookSettings webHookSettings = apiSettings.getWebHook();</span>
+<span class="fc bfc" id="L52" title="All 2 branches covered.">        if (webHookSettings == null) { // Authentication Failure</span>
+<span class="fc" id="L53">            authenticated = false;</span>
+<span class="fc" id="L54">            filterChain.doFilter(request, response);</span>
+<span class="fc" id="L55">            return;</span>
+        }
+<span class="fc" id="L57">        GitHubWebHookSettings gitHubWebHookSettings = webHookSettings.getGitHub();</span>
+<span class="pc bpc" id="L58" title="1 of 2 branches missed.">        if (gitHubWebHookSettings == null) { // Authentication Failure</span>
+<span class="nc" id="L59">            authenticated = false;</span>
+<span class="nc" id="L60">            filterChain.doFilter(request, response);</span>
+<span class="nc" id="L61">            return;</span>
+        }
+
+<span class="fc" id="L64">        String userAgentExpectedValue = gitHubWebHookSettings.getUserAgent();</span>
+<span class="fc" id="L65">        List&lt;String&gt; githubEnterpriseHostExpectedValues = gitHubWebHookSettings.getGithubEnterpriseHosts();</span>
+
+<span class="pc bpc" id="L67" title="1 of 2 branches missed.">        if (checkForEmptyValues(userAgent, githubEnterpriseHost, userAgentExpectedValue, githubEnterpriseHostExpectedValues)</span>
+<span class="fc bfc" id="L68" title="All 2 branches covered.">                || !userAgent.contains(userAgentExpectedValue)</span>
+<span class="pc bpc" id="L69" title="1 of 2 branches missed.">                || !githubEnterpriseHostExpectedValues.contains(githubEnterpriseHost)) {</span>
+<span class="fc" id="L70">            authenticated = false;</span>
+<span class="fc" id="L71">            filterChain.doFilter(request, response);</span>
+        } else {
+<span class="fc" id="L73">            authenticated = true;</span>
+<span class="nc" id="L74">            super.doFilter(req, res, filterChain);</span>
+        }
+<span class="fc" id="L76">    }</span>
+
+    protected boolean checkForEmptyValues(String userAgent, String githubEnterpriseHost, String userAgentExpectedValue,
+                                List&lt;String&gt; githubEnterpriseHostExpectedValues) {
+<span class="fc" id="L80">        boolean result = false;</span>
+
+<span class="fc bfc" id="L82" title="All 2 branches covered.">        if (checkForEmptyStringValues(userAgent, githubEnterpriseHost, userAgentExpectedValue)</span>
+<span class="fc bfc" id="L83" title="All 2 branches covered.">                || CollectionUtils.isEmpty(githubEnterpriseHostExpectedValues)) {</span>
+<span class="fc" id="L84">            result = true;</span>
+        }
+
+<span class="fc" id="L87">        return result;</span>
+    }
+
+    @Override
+    public Authentication attemptAuthentication(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) throws AuthenticationException {
+
+<span class="fc" id="L93">        Authentication authentication = githubWebHookAuthService.getAuthentication(httpServletRequest);</span>
+
+<span class="fc" id="L95">        SecurityContextHolder.getContext().setAuthentication(authentication);</span>
+
+<span class="fc" id="L97">        return authentication;</span>
+    }
+
+    @Override
+    protected void successfulAuthentication(HttpServletRequest request, HttpServletResponse response, FilterChain chain,
+                                            Authentication authResult) throws IOException, ServletException {
+<span class="nc" id="L103">        SecurityContextHolder.getContext().setAuthentication(authResult);</span>
+<span class="nc" id="L104">        chain.doFilter(request, response);</span>
+<span class="nc" id="L105">    }</span>
+
+    @Override
+    protected void unsuccessfulAuthentication(HttpServletRequest request, HttpServletResponse response,
+                                              AuthenticationException failed) throws IOException, ServletException {
+
+<span class="nc" id="L111">        response.sendError(HttpServletResponse.SC_UNAUTHORIZED, &quot;Github Webhook Authentication Failed&quot;);</span>
+<span class="nc" id="L112">    }</span>
+
+    private boolean checkForEmptyStringValues(String... values) {
+<span class="fc" id="L115">        return Arrays.stream(values, 0, values.length).anyMatch(StringUtils::isEmpty);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

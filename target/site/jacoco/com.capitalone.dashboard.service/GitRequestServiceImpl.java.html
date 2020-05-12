@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GitRequestServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.service</a> &gt; <span class="el_source">GitRequestServiceImpl.java</span></div><h1>GitRequestServiceImpl.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.service;
+
+import com.capitalone.dashboard.misc.HygieiaException;
+import com.capitalone.dashboard.model.Collector;
+import com.capitalone.dashboard.model.CollectorItem;
+import com.capitalone.dashboard.model.CollectorType;
+import com.capitalone.dashboard.model.Component;
+import com.capitalone.dashboard.model.DataResponse;
+import com.capitalone.dashboard.model.GitRequest;
+import com.capitalone.dashboard.model.QGitRequest;
+import com.capitalone.dashboard.repository.CollectorRepository;
+import com.capitalone.dashboard.repository.ComponentRepository;
+import com.capitalone.dashboard.repository.GitRequestRepository;
+import com.capitalone.dashboard.request.GitRequestRequest;
+import com.mysema.query.BooleanBuilder;
+import org.apache.commons.lang.StringUtils;
+import org.joda.time.DateTime;
+import org.joda.time.LocalDate;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
+
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+
+@Service
+public class GitRequestServiceImpl implements GitRequestService {
+
+    private final GitRequestRepository gitRequestRepository;
+    private final ComponentRepository componentRepository;
+    private final CollectorRepository collectorRepository;
+    private final CollectorService collectorService;
+
+    @Autowired
+    public GitRequestServiceImpl(GitRequestRepository gitRequestRepository,
+                           ComponentRepository componentRepository,
+                           CollectorRepository collectorRepository,
+<span class="fc" id="L42">                                 CollectorService collectorService) {</span>
+<span class="fc" id="L43">        this.gitRequestRepository = gitRequestRepository;</span>
+<span class="fc" id="L44">        this.componentRepository = componentRepository;</span>
+<span class="fc" id="L45">        this.collectorRepository = collectorRepository;</span>
+<span class="fc" id="L46">        this.collectorService = collectorService;</span>
+<span class="fc" id="L47">    }</span>
+
+    @Override
+    public DataResponse&lt;Iterable&lt;GitRequest&gt;&gt; search(GitRequestRequest request,
+                                                     String type, String state) {
+<span class="fc" id="L52">        QGitRequest gitRequest = new QGitRequest(&quot;search&quot;);</span>
+<span class="fc" id="L53">        BooleanBuilder builder = new BooleanBuilder();</span>
+
+<span class="fc" id="L55">        CollectorItem item = null;</span>
+<span class="fc" id="L56">        Component component = componentRepository.findOne(request.getComponentId());</span>
+<span class="fc bfc" id="L57" title="All 2 branches covered.">        if ( (component == null)</span>
+<span class="fc bfc" id="L58" title="All 2 branches covered.">                || ((item = component.getLastUpdatedCollectorItemForType(CollectorType.SCM)) == null) ) {</span>
+<span class="fc" id="L59">            Iterable&lt;GitRequest&gt; results = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L60">            return new DataResponse&lt;&gt;(results, new Date().getTime());</span>
+        }
+
+<span class="fc" id="L63">        builder.and(gitRequest.collectorItemId.eq(item.getId()));</span>
+
+<span class="pc bpc" id="L65" title="1 of 2 branches missed.">        if (request.getNumberOfDays() != null) {</span>
+<span class="nc" id="L66">            long endTimeTarget = new LocalDate().minusDays(request.getNumberOfDays()).toDate().getTime();</span>
+<span class="nc" id="L67">            builder.and(gitRequest.timestamp.goe(endTimeTarget));</span>
+        }
+<span class="pc bpc" id="L69" title="1 of 2 branches missed.">        if ( (type != null) &amp;&amp;</span>
+<span class="pc bpc" id="L70" title="3 of 4 branches missed.">                ((type.toLowerCase().equals(&quot;pull&quot;)) || (type.toLowerCase().equals(&quot;issue&quot;)))) {</span>
+<span class="fc" id="L71">            builder.and(gitRequest.requestType.eq(type));</span>
+        }
+<span class="pc bpc" id="L73" title="1 of 2 branches missed.">        if ( (state != null) &amp;&amp;</span>
+<span class="pc bpc" id="L74" title="1 of 2 branches missed.">                ((state.toLowerCase().equals(&quot;open&quot;)) ||</span>
+<span class="pc bpc" id="L75" title="2 of 4 branches missed.">                (state.toLowerCase().equals(&quot;closed&quot;)) || (state.toLowerCase().equals(&quot;merged&quot;)))) {</span>
+<span class="nc" id="L76">            builder.and(gitRequest.state.eq(state));</span>
+        }
+<span class="fc" id="L78">        Collector collector = collectorRepository.findOne(item.getCollectorId());</span>
+<span class="pc bpc" id="L79" title="2 of 4 branches missed.">        if ((collector == null) || (collector.getId() == null)) {</span>
+<span class="nc" id="L80">            Iterable&lt;GitRequest&gt; results = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L81">            return new DataResponse&lt;&gt;(results, new Date().getTime());</span>
+        }
+<span class="fc" id="L83">        return new DataResponse&lt;&gt;(gitRequestRepository.findAll(builder.getValue()), collector.getLastExecuted());</span>
+    }
+    @Override
+    public String createFromGitHubv3(JSONObject request) throws ParseException, HygieiaException {
+<span class="nc" id="L87">        GitRequestServiceImpl.GitHubv3 gitHubv3 = new GitRequestServiceImpl.GitHubv3(request.toJSONString());</span>
+
+<span class="nc bnc" id="L89" title="All 6 branches missed.">        if ((gitHubv3.getCollector() == null) || (gitHubv3.getCollectorItem() == null) || (CollectionUtils.isEmpty(gitHubv3.getGitRequests())))</span>
+<span class="nc" id="L90">            throw new HygieiaException(&quot;Nothing to update.&quot;, HygieiaException.NOTHING_TO_UPDATE);</span>
+
+<span class="nc" id="L92">        Collector col = collectorService.createCollector(gitHubv3.getCollector());</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">        if (col == null) throw new HygieiaException(&quot;Failed creating collector.&quot;, HygieiaException.COLLECTOR_CREATE_ERROR);</span>
+
+<span class="nc" id="L95">        CollectorItem item = gitHubv3.getCollectorItem();</span>
+<span class="nc" id="L96">        item.setCollectorId(col.getId());</span>
+<span class="nc" id="L97">        CollectorItem colItem = collectorService.createCollectorItem(item);</span>
+<span class="nc bnc" id="L98" title="All 2 branches missed.">        if (colItem == null) throw new HygieiaException(&quot;Failed creating collector item.&quot;, HygieiaException.COLLECTOR_ITEM_CREATE_ERROR);</span>
+
+<span class="nc" id="L100">        int count = 0;</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">        for (GitRequest c : gitHubv3.getGitRequests()) {</span>
+<span class="nc bnc" id="L102" title="All 2 branches missed.">            if (isNewGitRequest(colItem, c)) {</span>
+<span class="nc" id="L103">                c.setCollectorItemId(colItem.getId());</span>
+<span class="nc" id="L104">                gitRequestRepository.save(c);</span>
+<span class="nc" id="L105">                count = count + 1;</span>
+            }
+<span class="nc" id="L107">        }</span>
+<span class="nc" id="L108">        return col.getId() + &quot;:&quot; + colItem.getId() + &quot;:&quot; + count + &quot; new gitRequest(s) inserted.&quot;;</span>
+
+    }
+
+
+    private boolean isNewGitRequest(CollectorItem repo, GitRequest gitRequest) {
+<span class="nc bnc" id="L114" title="All 2 branches missed.">        return gitRequestRepository.findByCollectorItemIdAndScmRevisionNumber(</span>
+<span class="nc" id="L115">                repo.getId(), gitRequest.getScmRevisionNumber()) == null;</span>
+    }
+
+    private class GitHubv3 {
+        private static final String REPO_URL = &quot;url&quot;;
+        private static final String BRANCH = &quot;branch&quot;;
+        private static final String SCM_TAG = &quot;scm&quot;;
+        private CollectorItem collectorItem;
+        private Collector collector;
+<span class="nc" id="L124">        private List&lt;GitRequest&gt; gitRequests = new ArrayList&lt;&gt;();</span>
+        private String branch;
+        private String url;
+
+        private JSONObject jsonObject;
+<span class="nc" id="L129">        private JSONParser parser = new JSONParser();</span>
+
+
+<span class="nc" id="L132">        public GitHubv3(String json) throws ParseException, HygieiaException {</span>
+
+<span class="nc" id="L134">            this.jsonObject = (JSONObject) parser.parse(json);</span>
+<span class="nc" id="L135">            buildGitRequests();</span>
+<span class="nc bnc" id="L136" title="All 2 branches missed.">            if (!CollectionUtils.isEmpty(gitRequests)) {</span>
+<span class="nc" id="L137">                buildCollectorItem();</span>
+<span class="nc" id="L138">                buildCollector();</span>
+            }
+<span class="nc" id="L140">        }</span>
+
+        private void buildCollector() {
+<span class="nc" id="L143">            collector = new Collector();</span>
+<span class="nc" id="L144">            collector.setCollectorType(CollectorType.SCM);</span>
+<span class="nc" id="L145">            collector.setLastExecuted(System.currentTimeMillis());</span>
+<span class="nc" id="L146">            collector.setOnline(true);</span>
+<span class="nc" id="L147">            collector.setEnabled(true);</span>
+<span class="nc" id="L148">            collector.setName(&quot;GitHub&quot;);</span>
+<span class="nc" id="L149">        }</span>
+
+        private void buildCollectorItem() {
+<span class="nc bnc" id="L152" title="All 2 branches missed.">            if (!StringUtils.isEmpty(branch)) {</span>
+<span class="nc" id="L153">                collectorItem = new CollectorItem();</span>
+<span class="nc" id="L154">                collectorItem.setEnabled(false);</span>
+<span class="nc" id="L155">                collectorItem.setPushed(true);</span>
+<span class="nc" id="L156">                collectorItem.setLastUpdated(System.currentTimeMillis());</span>
+<span class="nc" id="L157">                collectorItem.getOptions().put(REPO_URL, url);</span>
+<span class="nc" id="L158">                collectorItem.getOptions().put(BRANCH, branch);</span>
+<span class="nc" id="L159">                collectorItem.getOptions().put(SCM_TAG, &quot;Github&quot;);</span>
+            }
+<span class="nc" id="L161">        }</span>
+
+
+        public CollectorItem getCollectorItem() {
+<span class="nc" id="L165">            return collectorItem;</span>
+        }
+
+        public Collector getCollector() {
+<span class="nc" id="L169">            return collector;</span>
+        }
+
+        public List&lt;GitRequest&gt; getGitRequests() {
+<span class="nc" id="L173">            return gitRequests;</span>
+        }
+
+        private void buildGitRequests() throws HygieiaException {
+<span class="nc" id="L177">            GitRequest gitRequest = new GitRequest();</span>
+            // Both Pull and Issue Events can be handled here
+<span class="nc" id="L179">            JSONObject  reqObject = (JSONObject) jsonObject.get(&quot;pull_request&quot;);</span>
+<span class="nc" id="L180">            gitRequest.setRequestType(&quot;pull&quot;);</span>
+<span class="nc bnc" id="L181" title="All 2 branches missed.">            if (reqObject == null) {</span>
+<span class="nc" id="L182">                reqObject = (JSONObject) jsonObject.get(&quot;issue&quot;);</span>
+<span class="nc" id="L183">                gitRequest.setRequestType(&quot;issue&quot;);</span>
+            }
+
+<span class="nc bnc" id="L186" title="All 2 branches missed.">            if ( reqObject == null) {</span>
+<span class="nc" id="L187">                return;</span>
+            }
+<span class="nc" id="L189">            JSONObject senderObject = (JSONObject) jsonObject.get(&quot;sender&quot;);</span>
+<span class="nc" id="L190">            JSONObject repoObject = (JSONObject) jsonObject.get(&quot;repository&quot;);</span>
+<span class="nc" id="L191">            String url = str(repoObject, &quot;url&quot;); // Repo can be null, but ok to throw NPE.</span>
+<span class="nc" id="L192">            gitRequest.setScmUrl(url);</span>
+            //Pulls and Issues are always on master
+<span class="nc" id="L194">            gitRequest.setScmBranch(&quot;master&quot;);</span>
+
+<span class="nc" id="L196">            long timestamp = System.currentTimeMillis();</span>
+<span class="nc" id="L197">            gitRequest.setTimestamp(System.currentTimeMillis()); // this is hygieia timestamp.</span>
+<span class="nc" id="L198">            gitRequest.setScmRevisionNumber(str(reqObject,&quot;number&quot;));</span>
+<span class="nc" id="L199">            gitRequest.setScmAuthor(str(senderObject, &quot;login&quot;));</span>
+<span class="nc" id="L200">            gitRequest.setUserId(str(senderObject, &quot;login&quot;));</span>
+<span class="nc" id="L201">            gitRequest.setScmCommitLog(str(reqObject, &quot;title&quot;));</span>
+<span class="nc" id="L202">            gitRequest.setCreatedAt(new DateTime(str(reqObject,&quot;created_at&quot;)).getMillis());</span>
+<span class="nc" id="L203">            gitRequest.setClosedAt(new DateTime(str(reqObject,&quot;closed_at&quot;)).getMillis());</span>
+<span class="nc" id="L204">            gitRequest.setMergedAt(new DateTime(str(reqObject,&quot;merged_at&quot;)).getMillis());</span>
+<span class="nc" id="L205">            gitRequest.setState(str(reqObject,&quot;state&quot;));</span>
+<span class="nc" id="L206">            gitRequest.setNumber(str(reqObject,&quot;number&quot;));</span>
+<span class="nc" id="L207">            String orgRepo = str(repoObject,&quot;full_name&quot;);</span>
+<span class="nc bnc" id="L208" title="All 2 branches missed.">            if (orgRepo != null) {</span>
+<span class="nc" id="L209">                String reponameArray[] = orgRepo.split(&quot;/&quot;);</span>
+<span class="nc bnc" id="L210" title="All 4 branches missed.">                if ((reponameArray != null) &amp;&amp; ( reponameArray.length &gt; 1)) {</span>
+<span class="nc" id="L211">                    gitRequest.setOrgName(reponameArray[0]);</span>
+<span class="nc" id="L212">                    gitRequest.setRepoName(reponameArray[1]);</span>
+                }
+            }
+
+<span class="nc" id="L216">            JSONObject headObject = (JSONObject) jsonObject.get(&quot;head&quot;);</span>
+<span class="nc" id="L217">            JSONObject headRepoObject = (JSONObject) headObject.get(&quot;repo&quot;);</span>
+<span class="nc" id="L218">            gitRequest.setSourceBranch(str(headObject, &quot;ref&quot;));</span>
+<span class="nc" id="L219">            gitRequest.setSourceRepo(str(headRepoObject, &quot;full_name&quot;));</span>
+<span class="nc" id="L220">            gitRequest.setHeadSha(str(headObject, &quot;sha&quot;));</span>
+
+<span class="nc" id="L222">            JSONObject baseObject = (JSONObject) jsonObject.get(&quot;base&quot;);</span>
+<span class="nc" id="L223">            JSONObject baseRepoObject = (JSONObject) baseObject.get(&quot;repo&quot;);</span>
+<span class="nc" id="L224">            gitRequest.setTargetBranch(str(baseObject, &quot;ref&quot;));</span>
+<span class="nc" id="L225">            gitRequest.setTargetRepo(str(baseRepoObject, &quot;full_name&quot;));</span>
+<span class="nc" id="L226">            gitRequest.setBaseSha(str(baseObject, &quot;sha&quot;));</span>
+
+<span class="nc" id="L228">        }</span>
+        private String str(JSONObject json, String key) throws HygieiaException {
+<span class="nc bnc" id="L230" title="All 2 branches missed.">            if (json == null) {</span>
+<span class="nc" id="L231">                throw new HygieiaException(&quot;Field '&quot; + key + &quot;' cannot be missing or null or empty&quot;,</span>
+                        HygieiaException.JSON_FORMAT_ERROR);
+            }
+<span class="nc" id="L234">            Object value = json.get(key);</span>
+<span class="nc bnc" id="L235" title="All 2 branches missed.">            return (value == null) ? null : value.toString();</span>
+        }
+
+    }
+
+  }
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

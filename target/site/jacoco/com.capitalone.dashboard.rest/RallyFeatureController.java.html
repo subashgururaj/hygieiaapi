@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RallyFeatureController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.rest</a> &gt; <span class="el_source">RallyFeatureController.java</span></div><h1>RallyFeatureController.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.rest;
+
+import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
+import static org.springframework.web.bind.annotation.RequestMethod.GET;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import javax.validation.Valid;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.capitalone.dashboard.model.CollectorItem;
+import com.capitalone.dashboard.model.RallyFeature;
+import com.capitalone.dashboard.request.RallyFeatureRequest;
+import com.capitalone.dashboard.response.RallyBurnDownResponse;
+import com.capitalone.dashboard.service.RallyFeatureService;
+
+@RestController
+public class RallyFeatureController {
+
+	private final RallyFeatureService rallyFeatureService;
+
+	@Autowired
+<span class="fc" id="L31">	public RallyFeatureController(RallyFeatureService rallyFeatureService) {</span>
+<span class="fc" id="L32">		this.rallyFeatureService = rallyFeatureService;</span>
+<span class="fc" id="L33">	}</span>
+
+	@RequestMapping(value = &quot;/rally&quot;, method = GET, produces = APPLICATION_JSON_VALUE)
+	public List&lt;Map&lt;String, Object&gt;&gt; getRallyWidgetData(@Valid RallyFeatureRequest request,@PageableDefault(size = Integer.MAX_VALUE) Pageable pageable) {
+<span class="nc" id="L37">		List&lt;RallyFeature&gt; currentIterations = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L38">		List&lt;Map&lt;String, Object&gt;&gt; consolidatedIterationData = new ArrayList&lt;&gt;();</span>
+
+<span class="nc" id="L40">		 CollectorItem item = rallyFeatureService.getCollectorItem(request);</span>
+<span class="nc bnc" id="L41" title="All 4 branches missed.">		 if(item!=null &amp;&amp; item.getLastUpdated()!=0) {</span>
+<span class="nc" id="L42">			currentIterations = rallyFeatureService.rallyWidgetDataDetails(item);</span>
+<span class="nc bnc" id="L43" title="All 2 branches missed.">			if(currentIterations.isEmpty()) {</span>
+<span class="nc" id="L44">				return null;</span>
+			}
+<span class="nc bnc" id="L46" title="All 2 branches missed.">			for (RallyFeature iteration : currentIterations) {</span>
+<span class="nc" id="L47">				Map&lt;String, Object&gt; iterationData = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L48">				iterationData.put(&quot;rallyFeature&quot;, iteration);</span>
+<span class="nc" id="L49">				iterationData.put(&quot;rallyBurnDownData&quot;, rallyFeatureService.rallyBurnDownData(iteration));</span>
+<span class="nc" id="L50">				consolidatedIterationData.add(iterationData);</span>
+<span class="nc" id="L51">			}</span>
+		 } else {
+<span class="nc" id="L53">				Map&lt;String, Object&gt; iterationData = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L54">				iterationData.put(&quot;rallyFeature&quot;, new RallyFeature());</span>
+<span class="nc" id="L55">				iterationData.put(&quot;rallyBurnDownData&quot;, new RallyBurnDownResponse());</span>
+<span class="nc" id="L56">				consolidatedIterationData.add(iterationData);</span>
+		 }
+<span class="nc" id="L58">		return consolidatedIterationData;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

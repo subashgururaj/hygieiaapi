@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StandardLoginRequestFilter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.auth.standard</a> &gt; <span class="el_source">StandardLoginRequestFilter.java</span></div><h1>StandardLoginRequestFilter.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.auth.standard;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.AuthenticationServiceException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+import com.capitalone.dashboard.auth.AuthenticationResultHandler;
+import com.capitalone.dashboard.model.AuthType;
+
+public class StandardLoginRequestFilter extends UsernamePasswordAuthenticationFilter {
+
+	public StandardLoginRequestFilter(String path, AuthenticationManager authManager, AuthenticationResultHandler authenticationResultHandler) {
+<span class="fc" id="L18">		super();</span>
+<span class="fc" id="L19">		setAuthenticationManager(authManager);</span>
+<span class="fc" id="L20">		setAuthenticationSuccessHandler(authenticationResultHandler);</span>
+<span class="fc" id="L21">		setFilterProcessesUrl(path);</span>
+<span class="fc" id="L22">	}</span>
+	
+	@Override
+	public Authentication attemptAuthentication(HttpServletRequest request, HttpServletResponse response) throws AuthenticationException {
+<span class="fc bfc" id="L26" title="All 2 branches covered.">		if (!request.getMethod().equals(&quot;POST&quot;)) {</span>
+<span class="fc" id="L27">			throw new AuthenticationServiceException(</span>
+<span class="fc" id="L28">					&quot;Authentication method not supported: &quot; + request.getMethod());</span>
+		}
+
+<span class="fc" id="L31">		String username = obtainUsername(request);</span>
+<span class="fc" id="L32">		String password = obtainPassword(request);</span>
+
+<span class="fc bfc" id="L34" title="All 2 branches covered.">		if (username == null) {</span>
+<span class="fc" id="L35">			username = &quot;&quot;;</span>
+		}
+
+<span class="fc bfc" id="L38" title="All 2 branches covered.">		if (password == null) {</span>
+<span class="fc" id="L39">			password = &quot;&quot;;</span>
+		}
+
+<span class="fc" id="L42">		username = username.trim();</span>
+
+<span class="fc" id="L44">		StandardAuthenticationToken authRequest = new StandardAuthenticationToken(</span>
+				username, password);
+
+<span class="fc" id="L47">		authRequest.setDetails(AuthType.STANDARD);</span>
+
+<span class="fc" id="L49">		return this.getAuthenticationManager().authenticate(authRequest);</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>

@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TokenAuthenticationServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">com.capitalone.dashboard:api</a> &gt; <a href="index.source.html" class="el_package">com.capitalone.dashboard.auth.token</a> &gt; <span class="el_source">TokenAuthenticationServiceImpl.java</span></div><h1>TokenAuthenticationServiceImpl.java</h1><pre class="source lang-java linenums">package com.capitalone.dashboard.auth.token;
+
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.MalformedJwtException;
+import io.jsonwebtoken.SignatureAlgorithm;
+
+import java.util.Collection;
+import java.util.Date;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
+import io.jsonwebtoken.SignatureException;
+import org.apache.commons.lang.StringUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.web.authentication.preauth.PreAuthenticatedAuthenticationToken;
+import org.springframework.stereotype.Component;
+
+import com.capitalone.dashboard.auth.AuthProperties;
+import com.google.common.collect.Sets;
+
+@Component
+public class TokenAuthenticationServiceImpl implements TokenAuthenticationService {
+
+	private static final String AUTHORIZATION = &quot;Authorization&quot;;
+	private static final String AUTH_PREFIX_W_SPACE = &quot;Bearer &quot;;
+	private static final String AUTH_RESPONSE_HEADER = &quot;X-Authentication-Token&quot;;
+	private static final String ROLES_CLAIM = &quot;roles&quot;;
+	private static final String DETAILS_CLAIM = &quot;details&quot;;
+
+	private AuthProperties tokenAuthProperties;
+	
+	@Autowired
+<span class="fc" id="L39">	public TokenAuthenticationServiceImpl(AuthProperties tokenAuthProperties) {</span>
+<span class="fc" id="L40">		this.tokenAuthProperties = tokenAuthProperties;</span>
+<span class="fc" id="L41">	}</span>
+	
+	@Override
+	public void addAuthentication(HttpServletResponse response, Authentication authentication) {
+<span class="fc" id="L45">		String jwt = Jwts.builder().setSubject(authentication.getName())</span>
+<span class="fc" id="L46">				.claim(DETAILS_CLAIM, authentication.getDetails())</span>
+<span class="fc" id="L47">				.claim(ROLES_CLAIM, getRoles(authentication.getAuthorities()))</span>
+<span class="fc" id="L48">				.setExpiration(new Date(System.currentTimeMillis() + tokenAuthProperties.getExpirationTime()))</span>
+<span class="fc" id="L49">				.signWith(SignatureAlgorithm.HS512, tokenAuthProperties.getSecret()).compact();</span>
+<span class="fc" id="L50">		response.addHeader(AUTH_RESPONSE_HEADER, jwt);</span>
+<span class="fc" id="L51">	}</span>
+
+	@SuppressWarnings(&quot;unchecked&quot;)
+	@Override
+	public Authentication getAuthentication(HttpServletRequest request) {
+<span class="fc" id="L56">		String authHeader = request.getHeader(AUTHORIZATION);</span>
+<span class="fc bfc" id="L57" title="All 2 branches covered.">		if (StringUtils.isBlank(authHeader)) return null;</span>
+		
+<span class="fc" id="L59">		String token = StringUtils.removeStart(authHeader, AUTH_PREFIX_W_SPACE);</span>
+		try {
+<span class="fc" id="L61">			Claims claims = Jwts.parser().setSigningKey(tokenAuthProperties.getSecret()).parseClaimsJws(token).getBody();</span>
+<span class="fc" id="L62">			String username = claims.getSubject();</span>
+<span class="fc" id="L63">			Collection&lt;? extends GrantedAuthority&gt; authorities = getAuthorities(claims.get(ROLES_CLAIM, Collection.class));</span>
+<span class="fc" id="L64">			PreAuthenticatedAuthenticationToken authentication = new PreAuthenticatedAuthenticationToken(username, null, authorities);</span>
+<span class="fc" id="L65">			authentication.setDetails(claims.get(DETAILS_CLAIM));</span>
+			
+<span class="fc" id="L67">			return authentication;</span>
+			
+<span class="fc" id="L69">		} catch (ExpiredJwtException | SignatureException | MalformedJwtException e) {</span>
+<span class="fc" id="L70">			return null;</span>
+		}
+	}
+	
+	private Collection&lt;String&gt; getRoles(Collection&lt;? extends GrantedAuthority&gt; authorities) {
+<span class="fc" id="L75">		Collection&lt;String&gt; roles = Sets.newHashSet();</span>
+<span class="fc" id="L76">		authorities.forEach(authority -&gt; {</span>
+<span class="fc" id="L77">			roles.add(authority.getAuthority()); </span>
+<span class="fc" id="L78">		});</span>
+		
+<span class="fc" id="L80">		return roles;</span>
+	}
+	
+	private Collection&lt;? extends GrantedAuthority&gt; getAuthorities(Collection&lt;String&gt; roles) {
+<span class="fc" id="L84">		Collection&lt;GrantedAuthority&gt; authorities = Sets.newHashSet();</span>
+<span class="fc" id="L85">		roles.forEach(role -&gt; {</span>
+<span class="fc" id="L86">			authorities.add(new SimpleGrantedAuthority(role));</span>
+<span class="fc" id="L87">		});</span>
+		
+<span class="fc" id="L89">		return authorities;</span>
+	}
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.3.201901230119</span></div></body></html>
